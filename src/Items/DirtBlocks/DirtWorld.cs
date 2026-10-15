@@ -144,11 +144,69 @@ internal static class DirtWorld
 
     private static void OnServerBreak(NetworkConnectionToClient conn, DirtBreakRequest msg)
     {
-        if (conn.identity == null || !serverBlocks.Remove(msg.cell))
+        if (conn.identity != null)
+        {
+            ServerBreak(msg.cell);
+        }
+    }
+
+    private static void ServerBreak(Vector3Int cell)
+    {
+        if (serverBlocks.Remove(cell))
+        {
+            NetworkServer.SendToAll(new DirtBroken { cell = cell });
+        }
+    }
+
+    private static readonly List<Vector3Int> toBreak = new();
+
+    /// <summary>Host: breaks every block that overlaps a sphere (an explosion).</summary>
+    public static void ServerBreakInSphere(Vector3 center, float radius)
+    {
+        ServerBreakWhere(cellCenter => (cellCenter - center).sqrMagnitude <= Mathf.Pow(radius + Size * 0.5f, 2f));
+    }
+
+    /// <summary>Host: breaks every block that overlaps a capsule from <paramref name="a"/> to <paramref name="b"/> (a beam).</summary>
+    public static void ServerBreakInCapsule(Vector3 a, Vector3 b, float radius)
+    {
+        Vector3 ab = b - a;
+        float lengthSquared = Mathf.Max(ab.sqrMagnitude, 0.0001f);
+        ServerBreakWhere(cellCenter =>
+        {
+            float t = Mathf.Clamp01(Vector3.Dot(cellCenter - a, ab) / lengthSquared);
+            return (a + ab * t - cellCenter).sqrMagnitude <= Mathf.Pow(radius + Size * 0.5f, 2f);
+        });
+    }
+
+    private static void ServerBreakWhere(System.Func<Vector3, bool> hit)
+    {
+        if (!NetworkServer.active || serverBlocks.Count == 0)
         {
             return;
         }
-        NetworkServer.SendToAll(new DirtBroken { cell = msg.cell });
+        foreach (Vector3Int cell in serverBlocks.Keys)
+        {
+            if (hit(CellCenter(cell)))
+            {
+                toBreak.Add(cell);
+            }
+        }
+        foreach (Vector3Int cell in toBreak)
+        {
+            ServerBreak(cell);
+        }
+        toBreak.Clear();
+    }
+
+    /// <summary>A shot or swing on this client hit <paramref name="collider"/>: if it's a block, break it.</summary>
+    public static bool TryBreakHit(Collider collider)
+    {
+        if (collider != null && TryGetCell(collider, out Vector3Int cell))
+        {
+            RequestBreak(cell);
+            return true;
+        }
+        return false;
     }
 
     /// <summary>Can't place a block inside a player, cart or ball.</summary>

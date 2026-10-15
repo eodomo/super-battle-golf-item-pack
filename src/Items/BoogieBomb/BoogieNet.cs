@@ -79,9 +79,9 @@ internal static class BoogieNet
 }
 
 /// <summary>
-/// Makes the local player do their victory dance for a while: controls off (so moving can't cancel it), and
-/// the dance restarted if something interrupts it (e.g. getting knocked out). Others see it through the game's
-/// own emote syncing.
+/// Makes the local player do their victory dance for a while: movement and item controls off (so moving can't
+/// cancel it) but the camera stays free, and the dance restarted if something interrupts it (e.g. getting knocked
+/// out). Others see it through the game's own emote syncing.
 /// </summary>
 internal static class BoogieDance
 {
@@ -102,7 +102,7 @@ internal static class BoogieDance
         if (!dancing)
         {
             dancing = true;
-            InputLock.Acquire();
+            SetGameplayControls(false);
             player.Inventory.CancelItemUse();
             StartEmote(player);
         }
@@ -120,6 +120,8 @@ internal static class BoogieDance
             Stop();
             return;
         }
+        // The game re-enables its controls whenever its input mode changes (closing a menu...): keep them off.
+        SetGameplayControls(false);
         // Interrupted (knocked out, landed after a launch...)? Back to dancing as soon as the game allows it.
         if (player.EmoteBeingPlayed != Emote.VictoryDance)
         {
@@ -142,11 +144,33 @@ internal static class BoogieDance
             return;
         }
         dancing = false;
-        InputLock.Release();
+        SetGameplayControls(true);
         PlayerInfo player = GameManager.LocalPlayerInfo;
         if (player != null && player.EmoteBeingPlayed == Emote.VictoryDance)
         {
             player.CancelEmote(canHideEmoteMenu: false);
+        }
+    }
+
+    /// <summary>
+    /// Movement, jumping, swinging, using and switching items. The camera controls are left alone. Only touched in
+    /// normal play, so menus, chat and the item menu keep working.
+    /// </summary>
+    private static void SetGameplayControls(bool enabled)
+    {
+        if (InputManager.CurrentMode != InputMode.Regular || InputManager.Controls == null)
+        {
+            return;
+        }
+        if (enabled)
+        {
+            InputManager.Controls.Gameplay.Enable();
+            InputManager.Controls.Hotkeys.Enable();
+        }
+        else
+        {
+            InputManager.Controls.Gameplay.Disable();
+            InputManager.Controls.Hotkeys.Disable();
         }
     }
 

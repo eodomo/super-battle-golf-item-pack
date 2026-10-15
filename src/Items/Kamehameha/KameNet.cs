@@ -156,6 +156,7 @@ internal static class KameNet
         msg.radius = Mathf.Clamp(msg.radius, 0.1f, 4f);
         msg.direction = msg.direction.sqrMagnitude > 0.001f ? msg.direction.normalized : conn.identity.transform.forward;
         NetworkServer.SendToAll(msg);
+        DirtWorld.ServerBreakInCapsule(msg.origin, msg.origin + msg.direction * msg.length, msg.radius);
 
         // Golf balls in the beam get blasted along it (the host simulates balls).
         LayerSettings layers = GameManager.LayerSettings;

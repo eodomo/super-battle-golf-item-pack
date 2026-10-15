@@ -177,7 +177,7 @@ internal static class ItemMenu
             SetStatus($"{type} isn't loaded yet.");
             return;
         }
-        int uses = ItemCatalog.TryGet(type, out CustomItem custom) ? custom.UsesPerPickup.Value : data.MaxUses;
+        int uses = ItemCatalog.TryGet(type, out CustomItem custom) ? custom.Uses : data.MaxUses;
         string name = custom != null ? custom.DisplayName : type.ToString();
         bool added = GameManager.LocalPlayerInventory.ServerTryAddItem(type, uses);
         SetStatus(added ? $"Gave you: {name}." : "Your inventory is full.");

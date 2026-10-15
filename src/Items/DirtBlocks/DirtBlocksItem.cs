@@ -29,6 +29,7 @@ internal class DirtBlocksItem : CustomItem
 
     protected override float DefaultItemBoxChance => 0.08f;
     protected override int DefaultUses => 64;
+    protected override int MaxUsesPerPickup => 64; // a full Minecraft stack
 
     internal static ConfigEntry<float> BlockSize;
     internal static ConfigEntry<float> Reach;
@@ -69,44 +70,57 @@ internal class DirtBlocksItem : CustomItem
     public override void Tick()
     {
         BreakWithGolfClub();
-        if (!OwnInput.TryGetHolder<DirtBlocksItem>(out PlayerInventory inventory) || Mouse.current == null)
+        bool holding = OwnInput.TryGetHolder<DirtBlocksItem>(out PlayerInventory inventory);
+        bool hasTarget = false;
+        Vector3Int cell = default;
+        bool canPlace = false;
+        int layer = 0;
+        if (holding)
+        {
+            hasTarget = TryGetPlacement(inventory.PlayerInfo, out cell, out canPlace, out layer);
+        }
+        PlacementOutline.Show(hasTarget, cell, canPlace);
+        if (!holding || Mouse.current == null)
         {
             return;
         }
-        if (Mouse.current.rightButton.wasPressedThisFrame && Time.time >= nextPlaceTime && OwnInput.CanUse(inventory))
+
+        if (Mouse.current.rightButton.wasPressedThisFrame && Time.time >= nextPlaceTime && hasTarget && canPlace && OwnInput.CanUse(inventory))
         {
             nextPlaceTime = Time.time + PlaceCooldown;
-            TryPlace(inventory);
+            ItemUse.ConsumeUse(inventory);
+            DirtWorld.RequestPlace(cell, layer);
+            inventory.RemoveIfOutOfUses(inventory.EquippedItemIndex, dueToFinishedItemUse: true);
         }
         else if (Mouse.current.leftButton.wasPressedThisFrame && Time.time >= nextBreakTime
-            && TryGetLookedAtBlock(inventory.PlayerInfo, out _, out Vector3Int cell, out bool onBlock) && onBlock)
+            && TryGetLookedAtBlock(inventory.PlayerInfo, out _, out Vector3Int blockCell, out bool onBlock) && onBlock)
         {
             nextBreakTime = Time.time + BreakCooldown;
-            DirtWorld.RequestBreak(cell);
+            DirtWorld.RequestBreak(blockCell);
         }
     }
 
-    private static void TryPlace(PlayerInventory inventory)
+    /// <summary>
+    /// Where a block would go: against a block, the neighbour on the face we're pointing at; against the world,
+    /// the cell just off the surface. <paramref name="canPlace"/> is false if that cell is taken or too far.
+    /// </summary>
+    private static bool TryGetPlacement(PlayerInfo player, out Vector3Int cell, out bool canPlace, out int layer)
     {
-        PlayerInfo player = inventory.PlayerInfo;
+        cell = default;
+        canPlace = false;
+        layer = 0;
         if (!TryGetLookedAtBlock(player, out RaycastHit hit, out Vector3Int targetCell, out bool onBlock))
         {
-            return;
+            return false;
         }
-        // Against a block: the neighbour on the face we're pointing at. Against the world: the cell just off the surface.
-        Vector3Int cell = onBlock
+        cell = onBlock
             ? targetCell + RoundToAxis(hit.normal)
             : DirtWorld.WorldToCell(hit.point + hit.normal * (DirtWorld.Size * 0.5f));
         Vector3 center = DirtWorld.CellCenter(cell);
-        if (DirtWorld.HasBlock(cell) || DirtWorld.IsOccupied(center)
-            || (center - player.transform.position).sqrMagnitude > Reach.Value * Reach.Value * 1.3f)
-        {
-            return;
-        }
-        int layer = onBlock ? hit.collider.gameObject.layer : BlockLayerFor(hit.collider);
-        ItemUse.ConsumeUse(inventory);
-        DirtWorld.RequestPlace(cell, layer);
-        inventory.RemoveIfOutOfUses(inventory.EquippedItemIndex, dueToFinishedItemUse: true);
+        canPlace = !DirtWorld.HasBlock(cell) && !DirtWorld.IsOccupied(center)
+            && (center - player.transform.position).sqrMagnitude <= Reach.Value * Reach.Value * 1.3f;
+        layer = onBlock ? hit.collider.gameObject.layer : BlockLayerFor(hit.collider);
+        return true;
     }
 
     /// <summary>
@@ -264,5 +278,64 @@ internal static class DirtSounds
             });
         }
         ItemAudio.Play(breakSound, ItemAudio.SfxBus, ItemAudio.Attenuate(position, 1f, 6f, 45f));
+    }
+}
+
+/// <summary>Outline of the cell the next block goes into: white when it can be placed, red when it can't.</summary>
+internal static class PlacementOutline
+{
+    // One continuous path that runs along all 12 edges of a cube (corner indices, bottom 0-3, top 4-7).
+    private static readonly int[] Path = { 0, 1, 2, 3, 0, 4, 5, 1, 5, 6, 2, 6, 7, 3, 7, 4 };
+    private static readonly Color Valid = new(1f, 1f, 1f, 0.9f);
+    private static readonly Color Invalid = new(1f, 0.25f, 0.2f, 0.9f);
+
+    private static LineRenderer line;
+    private static readonly Vector3[] corners = new Vector3[8];
+    private static readonly Vector3[] points = new Vector3[Path.Length];
+
+    public static void Show(bool visible, Vector3Int cell, bool canPlace)
+    {
+        if (!visible)
+        {
+            if (line != null)
+            {
+                line.enabled = false;
+            }
+            return;
+        }
+        if (line == null)
+        {
+            var go = new GameObject("DirtPlacementOutline");
+            Object.DontDestroyOnLoad(go);
+            line = go.AddComponent<LineRenderer>();
+            line.sharedMaterial = UnlitMaterials.Opaque(null, Color.white);
+            line.useWorldSpace = true;
+            line.loop = false;
+            line.positionCount = Path.Length;
+            line.numCornerVertices = 0;
+            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            line.receiveShadows = false;
+        }
+        float size = DirtWorld.Size;
+        // A hair bigger than the block so it isn't hidden inside neighbouring blocks' faces.
+        Vector3 min = (Vector3)cell * size - Vector3.one * 0.01f;
+        float s = size + 0.02f;
+        for (int i = 0; i < 8; i++)
+        {
+            corners[i] = min + new Vector3((i == 1 || i == 2 || i == 5 || i == 6) ? s : 0f, i >= 4 ? s : 0f, (i == 2 || i == 3 || i == 6 || i == 7) ? s : 0f);
+        }
+        for (int i = 0; i < Path.Length; i++)
+        {
+            points[i] = corners[Path[i]];
+        }
+        line.SetPositions(points);
+        float width = 0.025f * Mathf.Max(1f, size);
+        line.startWidth = width;
+        line.endWidth = width;
+        Color color = canPlace ? Valid : Invalid;
+        line.startColor = color;
+        line.endColor = color;
+        UnlitMaterials.SetColor(line.sharedMaterial, color);
+        line.enabled = true;
     }
 }

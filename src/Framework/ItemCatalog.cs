@@ -88,7 +88,7 @@ internal static class ItemCatalog
         var data = (ItemData)MemberwiseCloneMethod.Invoke(template, null);
         data.Type = item.Type;
         data.name = null;
-        data.MaxUses = item.UsesPerPickup.Value;
+        data.MaxUses = item.Uses;
         if (item.Model.Icon != null)
         {
             data.Icon = item.Model.Icon;

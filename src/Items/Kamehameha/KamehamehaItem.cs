@@ -27,7 +27,7 @@ internal class KamehamehaItem : CustomItem
     protected override bool HasMesh => false;
 
     protected override float DefaultItemBoxChance => 0.06f;
-    protected override int DefaultUses => 2;
+    protected override int DefaultUses => 1;
 
     internal static ConfigEntry<float> MaxChargeSeconds;
     internal static ConfigEntry<float> MaxRange;
@@ -60,6 +60,23 @@ internal class KamehamehaItem : CustomItem
         var empty = new GameObject("KamehamehaHands");
         empty.transform.SetParent(parent, false);
         return empty;
+    }
+
+    // Dropped, it's a glowing ball of energy (there's nothing to hold).
+    public override GameObject CreateDroppedModel(Transform parent)
+    {
+        GameObject orb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Object.Destroy(orb.GetComponent<Collider>());
+        orb.name = "KamehamehaOrb";
+        orb.transform.SetParent(parent, false);
+        orb.transform.localScale = Vector3.one * 0.35f;
+        orb.GetComponent<MeshRenderer>().sharedMaterial = UnlitMaterials.Opaque(null, new Color(0.45f, 0.75f, 1f) * 1.4f);
+        var light = orb.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = new Color(0.4f, 0.65f, 1f);
+        light.range = 3f;
+        light.intensity = 2f;
+        return orb;
     }
 
     // Charging and firing come from Tick (hold and release left click).

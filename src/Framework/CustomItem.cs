@@ -52,6 +52,9 @@ internal abstract class CustomItem
     /// <summary>The model shown in the player's hand. Defaults to the item's .obj model.</summary>
     public virtual GameObject CreateHeldModel(Transform parent, float scale) => Model.CreateModel(parent, scale);
 
+    /// <summary>The model shown when the item lies on the ground after being dropped. Defaults to the held model.</summary>
+    public virtual GameObject CreateDroppedModel(Transform parent) => CreateHeldModel(parent, HeldScale.Value);
+
     /// <summary>Folder holding the item's assets (plugins\ItemPack\{Key}).</summary>
     public string AssetDir { get; private set; }
 
@@ -61,6 +64,12 @@ internal abstract class CustomItem
 
     public ConfigEntry<float> ItemBoxChance { get; private set; }
     public ConfigEntry<int> UsesPerPickup { get; private set; }
+
+    /// <summary>Most uses one pickup can hold, whatever the config says (e.g. 64 for a stack of dirt).</summary>
+    protected virtual int MaxUsesPerPickup => 999;
+
+    /// <summary>Uses per pickup: the config value, kept within 1..<see cref="MaxUsesPerPickup"/>.</summary>
+    public int Uses => Mathf.Clamp(UsesPerPickup.Value, 1, MaxUsesPerPickup);
     public ConfigEntry<float> HeldScale { get; private set; }
     public ConfigEntry<Vector3> HeldOffset { get; private set; }
     public ConfigEntry<Vector3> HeldRotation { get; private set; }

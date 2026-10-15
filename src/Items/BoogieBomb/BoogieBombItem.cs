@@ -7,7 +7,7 @@ namespace ItemPack.Items;
 /// <summary>
 /// Boogie Bomb (Fortnite): throw the disco ball (aim to throw where you're looking, otherwise it's lobbed
 /// forward). It bounces, pops, and everyone caught in the blast does their victory dance for a few seconds,
-/// unable to move or use items. Electromagnet shields protect you.
+/// unable to move or use items (they can still look around). Electromagnet shields protect you.
 /// </summary>
 internal class BoogieBombItem : CustomItem
 {
@@ -23,7 +23,7 @@ internal class BoogieBombItem : CustomItem
     public override ReticleType AimReticle => ReticleType.FreezeBomb;
 
     protected override float DefaultItemBoxChance => 0.07f;
-    protected override int DefaultUses => 2;
+    protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 1f;
 
     internal static ConfigEntry<float> Radius;

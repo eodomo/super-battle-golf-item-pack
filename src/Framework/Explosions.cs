@@ -21,6 +21,7 @@ internal static class Explosions
             return;
         }
         float radius = GameManager.ItemSettings.RocketExplosionRange * radiusScale;
+        Items.DirtWorld.ServerBreakInSphere(position, radius);
         int count = Physics.OverlapSphereNonAlloc(position, radius, PlayerGolfer.overlappingColliderBuffer,
             GameManager.LayerSettings.RocketHittablesMask, QueryTriggerInteraction.Ignore);
         ItemUseId useId = owner != null ? owner.Inventory.IncrementAndGetCurrentItemUseId(ItemType.RocketLauncher) : ItemUseId.Invalid;

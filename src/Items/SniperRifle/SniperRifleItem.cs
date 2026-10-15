@@ -28,7 +28,7 @@ internal class SniperRifleItem : CustomItem
     public override string AssetName => "sniper_rifle";
 
     protected override float DefaultItemBoxChance => 0.07f;
-    protected override int DefaultUses => 12;
+    protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.6f;
 
     public const float ZoomInDuration = 0.08f;
@@ -179,6 +179,12 @@ internal class SniperRifleItem : CustomItem
         {
             RaycastHit hit = hits[i];
             Hittable hittable = hit.collider.GetComponentInParent<Hittable>();
+            if (hittable == null && DirtWorld.TryBreakHit(hit.collider))
+            {
+                VfxManager.PlayElephantGunHitForAllClients(inventory, new VfxManager.GunShotHitVfxData(null, hitElectromagnetShield: false, default, hit.point));
+                end = hit.point;
+                break; // a dirt block stops the round (and breaks)
+            }
             if (hittable != null && (!inventory.CanHitWithGunshot(hittable, null) || !hitThisShot.Add(hittable)))
             {
                 continue; // ourselves, or another collider of something already hit

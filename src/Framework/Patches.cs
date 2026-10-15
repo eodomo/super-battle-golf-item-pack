@@ -65,25 +65,6 @@ internal static class EquipmentSwitcherPatch
     }
 }
 
-[HarmonyPatch(typeof(PlayerInventory), nameof(PlayerInventory.UserCode_CmdDropItemAt__Int32__Vector3__Vector3__ItemUseId))]
-internal static class DropItemPatch
-{
-    // Dropped items need a networked pickup prefab per item type, which we don't have.
-    // Dropping a pack item just discards it.
-    private static bool Prefix(PlayerInventory __instance, int index)
-    {
-        if (index < 0 || index >= __instance.slots.Count || !ItemCatalog.IsCustom(__instance.slots[index].itemType))
-        {
-            return true;
-        }
-        if (__instance.serverDropItemCommandRateLimiter.RegisterHit())
-        {
-            __instance.RemoveItemAt(index, localOnly: false, dueToFinishedItemUse: false);
-        }
-        return false;
-    }
-}
-
 [HarmonyPatch(typeof(PlayerInventory), nameof(PlayerInventory.LocalPlayerUpdateAimingReticle))]
 internal static class AimingReticlePatch
 {
@@ -111,6 +92,7 @@ internal static class NetworkManagerPatches
     [HarmonyPostfix, HarmonyPatch(nameof(BNetworkManager.OnStartServer))]
     private static void OnStartServer()
     {
+        DroppedItems.RegisterServerHandlers();
         foreach (CustomItem item in ItemCatalog.All)
         {
             item.OnStartServer();
@@ -120,6 +102,7 @@ internal static class NetworkManagerPatches
     [HarmonyPostfix, HarmonyPatch(nameof(BNetworkManager.OnStartClient))]
     private static void OnStartClient()
     {
+        DroppedItems.RegisterClientHandlers();
         foreach (CustomItem item in ItemCatalog.All)
         {
             item.OnStartClient();
@@ -147,6 +130,7 @@ internal static class NetworkManagerPatches
     [HarmonyPostfix, HarmonyPatch(nameof(BNetworkManager.OnServerReady))]
     private static void OnServerReady(NetworkConnectionToClient connection)
     {
+        DroppedItems.SendExisting(connection);
         foreach (CustomItem item in ItemCatalog.All)
         {
             item.OnServerReady(connection);

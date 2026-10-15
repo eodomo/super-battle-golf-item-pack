@@ -21,7 +21,7 @@ internal class BananaPeelItem : CustomItem
     public override string AssetName => "banana_peel";
 
     protected override float DefaultItemBoxChance => 0.15f;
-    protected override int DefaultUses => 3;
+    protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.8f;
     protected override Vector3 DefaultHeldRotation => new(90f, 0f, 0f);
 

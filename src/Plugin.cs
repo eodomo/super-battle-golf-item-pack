@@ -52,6 +52,8 @@ public class Plugin : BaseUnityPlugin
         {
             item.Init(Config, pluginDir);
         }
+        MigrateConfig();
+        DroppedItems.InitSerializers();
         new Harmony(Guid).PatchAll();
 
         // Own runner object, so updates keep going even if the BepInEx manager object gets disabled.
@@ -61,6 +63,31 @@ public class Plugin : BaseUnityPlugin
         Runner = runner.AddComponent<ItemPackRunner>();
 
         Log.LogInfo($"Item Pack {Version} loaded with {ItemCatalog.All.Count} items.");
+    }
+
+    /// <summary>
+    /// A config file keeps whatever values it was saved with, so changed defaults don't reach existing installs.
+    /// Bump <see cref="ConfigVersion"/> when a default must take effect everywhere, and reset it here.
+    /// </summary>
+    private void MigrateConfig()
+    {
+        const int ConfigVersion = 2;
+        ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
+        if (stored.Value >= ConfigVersion)
+        {
+            return;
+        }
+        if (stored.Value < 2)
+        {
+            // 0.2.0 rebalanced uses per pickup (one banana peel, one sniper shot, one kamehameha...).
+            foreach (CustomItem item in ItemCatalog.All)
+            {
+                item.UsesPerPickup.Value = (int)item.UsesPerPickup.DefaultValue;
+            }
+        }
+        stored.Value = ConfigVersion;
+        Config.Save();
+        Log.LogInfo($"Updated settings to version {ConfigVersion}.");
     }
 }
 
