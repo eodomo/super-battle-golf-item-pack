@@ -1,0 +1,9 @@
+# Kd values are sRGB
+newmtl PeelInner
+Kd 1.0000 0.9400 0.5800
+
+newmtl PeelOuter
+Kd 1.0000 0.8400 0.1200
+
+newmtl Stem
+Kd 0.3600 0.2300 0.0900

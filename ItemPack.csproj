@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ItemPack</AssemblyName>
+    <RootNamespace>ItemPack</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <NoWarn>$(NoWarn);CS0436;MSB3277</NoWarn>
+
+    <!-- Override with -p:GameDir=... if the game is installed elsewhere. -->
+    <GameDir Condition="'$(GameDir)' == ''">G:\Games\SteamLibrary\steamapps\common\Super Battle Golf</GameDir>
+    <ManagedDir>$(GameDir)\Super Battle Golf_Data\Managed</ManagedDir>
+    <BepInExCoreDir>$(GameDir)\BepInEx\core</BepInExCoreDir>
+    <PluginInstallDir>$(GameDir)\BepInEx\plugins\ItemPack</PluginInstallDir>
+    <!-- tools/package.ps1 sets this to false to build without touching the game folder. -->
+    <InstallToGame Condition="'$(InstallToGame)' == ''">true</InstallToGame>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Game code is publicized so private members (inventory internals etc.) can be called directly. -->
+    <Reference Include="GameAssembly" HintPath="$(ManagedDir)\GameAssembly.dll" Private="false" Publicize="true" />
+    <Reference Include="SharedAssembly" HintPath="$(ManagedDir)\SharedAssembly.dll" Private="false" Publicize="true" />
+    <Reference Include="AntiCheat" HintPath="$(ManagedDir)\AntiCheat.dll" Private="false" Publicize="true" />
+    <Reference Include="Mirror" HintPath="$(ManagedDir)\Mirror.dll" Private="false" />
+    <Reference Include="Unity.InputSystem" HintPath="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
+    <Reference Include="Unity.Localization" HintPath="$(ManagedDir)\Unity.Localization.dll" Private="false" />
+    <Reference Include="Unity.ResourceManager" HintPath="$(ManagedDir)\Unity.ResourceManager.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(ManagedDir)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ManagedDir)\UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
+    <Reference Include="UnityEngine.AnimationModule" HintPath="$(ManagedDir)\UnityEngine.AnimationModule.dll" Private="false" />
+    <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)\BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)\0Harmony.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- Copy the plugin and every item's assets (Assets\<Item>\...) into BepInEx\plugins\ItemPack after every build. -->
+  <Target Name="InstallPlugin" AfterTargets="Build" Condition="'$(InstallToGame)' == 'true'">
+    <ItemGroup>
+      <ItemAssets Include="Assets\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginInstallDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ItemAssets)" DestinationFolder="$(PluginInstallDir)\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Installed Item Pack to $(PluginInstallDir)" />
+  </Target>
+
+</Project>
