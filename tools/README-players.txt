@@ -39,6 +39,11 @@ Install
    "Super Battle Golf.exe").
 3. Launch the game.
 
+Updating
+--------
+In the game: Settings > General > "Check for updates" (next to "Item Pack").
+It downloads and installs the newest release; restart the game afterwards.
+
 Uninstall
 ---------
 Delete winhttp.dll, doorstop_config.ini, .doorstop_version, changelog.txt and

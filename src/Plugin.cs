@@ -14,9 +14,12 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.1.0";
+    public const string Version = "0.2.0";
 
     internal static ManualLogSource Log;
+
+    /// <summary>The pack's always-running object, for coroutines (e.g. the updater).</summary>
+    internal static MonoBehaviour Runner { get; private set; }
 
     internal static ConfigEntry<bool> DebugGiveEnabled;
     internal static ConfigEntry<Key> DebugGiveKey;
@@ -25,6 +28,7 @@ public class Plugin : BaseUnityPlugin
     private void Awake()
     {
         Log = Logger;
+        ModUpdater.CleanupAfterUpdate();
 
         DebugGiveEnabled = Config.Bind("Debug", "GiveKeyEnabled", true,
             "Lets the host give themselves items with the keys below. Only works in the Driving Range, " +
@@ -53,7 +57,7 @@ public class Plugin : BaseUnityPlugin
         var runner = new GameObject("ItemPackRunner");
         runner.hideFlags = HideFlags.HideAndDontSave;
         DontDestroyOnLoad(runner);
-        runner.AddComponent<ItemPackRunner>();
+        Runner = runner.AddComponent<ItemPackRunner>();
 
         Log.LogInfo($"Item Pack {Version} loaded with {ItemCatalog.All.Count} items.");
     }

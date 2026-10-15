@@ -29,7 +29,7 @@ New items for Super Battle Golf. They show up in item boxes alongside the normal
 
 The zip includes [BepInEx 5](https://github.com/BepInEx/BepInEx) (the mod loader), so you don't need to install anything else.
 
-**Updating:** extract the new zip over the old one.
+**Updating:** in the game, open **Settings** (General tab) and click **Check for updates** next to "Item Pack": it downloads the newest release from GitHub and installs it, then restart the game. (Versions before 0.2.0 don't have the button: extract the new zip over the old one once.)
 **Uninstalling:** delete `winhttp.dll`, `doorstop_config.ini`, `.doorstop_version`, `changelog.txt` and the `BepInEx` folder.
 
 ## Settings
@@ -83,6 +83,7 @@ Do **not** add pack items to the game's `ItemPool`: `MatchSetupRules` indexes it
 | `src/Items/Kamehameha/` | Kamehameha: charge and beam effects for everyone, the shooter finds who's in the beam, hit players launch themselves, the host pushes balls |
 | `src/Items/DirtBlocks/` | Dirt Blocks: host-owned block grid, solid cube per block, placement against block faces, breaking from the local player's golf swing hitbox |
 | `src/Items/BlueShell/` | Blue Shell: the host picks the leader by ball-to-hole distance and times the flight; every client flies the shell on the shared timing; the host runs the explosions on impact |
+| `src/Framework/Updater/` | "Check for updates" button in the game's Settings menu: GitHub latest-release check, download, install of the plugin folder (the loaded DLL is set aside as *.old and cleaned up on the next launch) |
 | `src/Framework/Synth.cs` | Small synthesizer the items use for their sound effects |
 | `src/Framework/ItemMenu.cs` | The F7 give menu and F6 quick give (host only, Driving Range or cheats on) |
 | `src/Framework/ItemAudio.cs` | Plays sounds through the game's FMOD buses, so its volume sliders apply |
