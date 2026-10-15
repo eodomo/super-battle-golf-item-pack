@@ -1,22 +1,26 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
-using UnityEngine;
 
 namespace ItemPack.Items;
 
 /// <summary>
 /// Gives the sniper the Railgun's scope. The game decides "zoom into first person while aiming" and "slow
 /// the mouse down while zoomed" by checking for the Railgun in two small helper functions; these patches
-/// make those two checks (and nothing else) see the sniper as a Railgun.
+/// make those two checks (and nothing else) see the sniper as a Railgun, and swap the Railgun's fixed
+/// scoped sensitivity for one that follows the sniper's zoom level.
 /// </summary>
 internal static class SniperScopePatches
 {
     private static readonly MethodInfo GetEffectivelyEquippedItem =
         AccessTools.Method(typeof(PlayerInventory), nameof(PlayerInventory.GetEffectivelyEquippedItem));
+    private static readonly MethodInfo RailgunSensitivityGetter =
+        AccessTools.PropertyGetter(typeof(ItemSettings), nameof(ItemSettings.RailgunZoomCameraSensitivityFactor));
 
     private static readonly MethodInfo ScopeItemMethod = AccessTools.Method(typeof(SniperScopePatches), nameof(ScopeItem));
+    private static readonly MethodInfo SensitivityMethod = AccessTools.Method(typeof(SniperScope), nameof(SniperScope.SensitivityFactor));
 
     /// <summary>Stand-in for PlayerInventory.GetEffectivelyEquippedItem(bool) inside the patched helpers.</summary>
     public static ItemType ScopeItem(PlayerInventory inventory, bool ignoreEquipmentHiding)
@@ -25,20 +29,22 @@ internal static class SniperScopePatches
         return SniperRifleItem.IsSniper(item) ? ItemType.Railgun : item;
     }
 
-    public static IEnumerable<CodeInstruction> ReplaceEquippedItemCalls(IEnumerable<CodeInstruction> instructions, MethodBase original)
+    public static IEnumerable<CodeInstruction> Replace(IEnumerable<CodeInstruction> instructions, MethodBase original, bool sensitivity)
     {
         int replaced = 0;
         foreach (CodeInstruction instruction in instructions)
         {
-            if (instruction.Calls(GetEffectivelyEquippedItem))
-            {
-                replaced++;
-                yield return new CodeInstruction(System.Reflection.Emit.OpCodes.Call, ScopeItemMethod).MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
-            }
-            else
+            MethodInfo replacement = instruction.Calls(GetEffectivelyEquippedItem) ? ScopeItemMethod
+                : sensitivity && instruction.Calls(RailgunSensitivityGetter) ? SensitivityMethod
+                : null;
+            if (replacement == null)
             {
                 yield return instruction;
+                continue;
             }
+            replaced++;
+            // Same stack shape: (instance, args...) -> static (instance, args...).
+            yield return new CodeInstruction(OpCodes.Call, replacement).MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
         }
         if (replaced == 0)
         {
@@ -60,7 +66,7 @@ internal static class SniperFirstPersonAimPatch
         SniperScopePatches.FindLocalFunction(typeof(PlayerInventory), "UpdateIsInFirstPersonAim", "ShouldBeInFirstPersonAim");
 
     private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase original) =>
-        SniperScopePatches.ReplaceEquippedItemCalls(instructions, original);
+        SniperScopePatches.Replace(instructions, original, sensitivity: false);
 }
 
 [HarmonyPatch]
@@ -72,26 +78,36 @@ internal static class SniperScopeSensitivityPatch
         SniperScopePatches.FindLocalFunction(typeof(PlayerInput), "Update", "UpdateCameraInput");
 
     private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase original) =>
-        SniperScopePatches.ReplaceEquippedItemCalls(instructions, original);
+        SniperScopePatches.Replace(instructions, original, sensitivity: true);
 }
 
 [HarmonyPatch(typeof(PlayerInventory), nameof(PlayerInventory.UpdateIsInFirstPersonAim))]
 internal static class SniperZoomPatch
 {
-    private static void Prefix(PlayerInventory __instance, out bool __state) => __state = __instance.IsInFirstPersonAim;
+    private static void Prefix(PlayerInventory __instance, out bool __state)
+    {
+        __state = __instance.isLocalPlayer && SniperScope.IsScoped;
+        if (__instance.isLocalPlayer && !__instance.IsInFirstPersonAim)
+        {
+            SniperScope.CaptureBaseFov();
+        }
+    }
 
-    // Scoping in uses the Railgun's zoom; switch to the sniper's own (stronger) zoom.
+    // Scoping in starts at the Railgun's zoom; switch to the sniper's first zoom level (and play its sounds).
     private static void Postfix(PlayerInventory __instance, bool __state)
     {
-        float fov = SniperRifleItem.ZoomFov.Value;
-        if (__state || !__instance.IsInFirstPersonAim || fov <= 0f
-            || !SniperRifleItem.IsSniper(__instance.GetEffectivelyEquippedItem(ignoreEquipmentHiding: true)))
+        if (!__instance.isLocalPlayer)
         {
             return;
         }
-        if (CameraModuleController.TryGetFirstPersonModule(out FirstPersonCameraModule firstPerson))
+        bool scoped = SniperScope.IsScoped;
+        if (scoped && !__state)
         {
-            firstPerson.AnimateFovOffsetOverTime(Mathf.Clamp(fov, 3f, 90f), GameManager.ItemSettings.RailgunZoomFovChangeDuration, BMath.EaseOut);
+            SniperScope.OnScopedIn();
+        }
+        else if (!scoped && __state)
+        {
+            SniperScope.OnScopedOut();
         }
     }
 }

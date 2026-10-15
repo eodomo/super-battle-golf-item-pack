@@ -39,11 +39,35 @@ internal static class ItemAudio
         return sound;
     }
 
-    /// <summary>Streams an audio file (ogg, mp3, wav, flac...) from disk.</summary>
-    public static bool TryLoadFile(string path, out FMOD.Sound sound)
+    private static readonly string[] AudioExtensions = { ".ogg", ".wav", ".mp3", ".flac" };
+
+    /// <summary>
+    /// Loads "{baseName}.ogg/.wav/.mp3/.flac" from <paramref name="directory"/> if the player put one there
+    /// (used for optional sound replacements that can't ship with the pack).
+    /// </summary>
+    public static bool TryLoadOptional(string directory, string baseName, bool stream, out FMOD.Sound sound)
     {
-        FMOD.RESULT result = RuntimeManager.CoreSystem.createSound(path,
-            FMOD.MODE.CREATESTREAM | FMOD.MODE._2D | FMOD.MODE.LOOP_OFF, out sound);
+        foreach (string extension in AudioExtensions)
+        {
+            string path = System.IO.Path.Combine(directory, baseName + extension);
+            if (System.IO.File.Exists(path) && TryLoadFile(path, out sound, stream))
+            {
+                Plugin.Log.LogInfo($"Using sound file {path}");
+                return true;
+            }
+        }
+        sound = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Loads an audio file (ogg, mp3, wav, flac...) from disk. Streams (for music) play one instance at a
+    /// time; samples (for effects) can overlap.
+    /// </summary>
+    public static bool TryLoadFile(string path, out FMOD.Sound sound, bool stream = true)
+    {
+        FMOD.MODE mode = (stream ? FMOD.MODE.CREATESTREAM : FMOD.MODE.CREATESAMPLE) | FMOD.MODE._2D | FMOD.MODE.LOOP_OFF;
+        FMOD.RESULT result = RuntimeManager.CoreSystem.createSound(path, mode, out sound);
         if (result != FMOD.RESULT.OK)
         {
             Plugin.Log.LogWarning($"Couldn't load sound {path}: {result}");

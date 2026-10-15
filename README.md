@@ -7,9 +7,11 @@ New items for Super Battle Golf. They show up in item boxes alongside the normal
 | **Banana Peel** | Use to drop a peel at your feet; hold aim + use to throw one. Anyone who runs over a peel slips: a leg-sweep knockout that launches them forward (shields and knockout immunity still protect you). You can't slip on your own peel for the first 2 seconds. 3 peels per pickup. |
 | **Portal Gun** | Use to place an orange portal where you're looking; aim + use to place a blue one. Each player has their own pair. You can see through linked portals, and players, balls, carts and items that go in come out the other portal with their momentum. Portals last until replaced or until the hole ends. 8 shots per pickup. |
 | **Steam Whistle** | Blow it and a winged blue tank engine swoops in and sets a player on fire (a random other player by default). A tribute to the famous Skyrim mod. |
-| **Sniper Rifle** | Halo style. Hold aim to look through a zoomed scope, use to fire: a long-range hitscan shot that knocks out whoever it hits, with no recoil dive. Scoped shots go exactly where the crosshair is; hip fire spreads a little. 4 shots per pickup. |
+| **Sniper Rifle** | Halo's SRS99, recreated. Hold aim to scope in at 2x (scroll up or middle mouse for 10x) with a Halo-style scope view; use to fire. One shot knocks a player out and goes through up to 2 players. 4-round magazine that reloads itself (taking you out of the scope), 12 rounds per pickup. Everyone hears the shot across the map and sees the vapor trail. |
 
 **Steam Whistle theme:** no music ships with the pack. To hear one during the attack, put an audio file named `thomas_theme.ogg` (or `.mp3`, `.wav`, `.flac`) in `BepInEx\plugins\ItemPack\SteamWhistle\`. Each player hears their own file, and it's never committed to this repo.
+
+**Sniper Rifle sounds:** the pack synthesizes its own shot, zoom and reload sounds. To use others (for example ones from your own copy of Halo), put `sniper_fire`, `sniper_zoom_in`, `sniper_zoom_out` and/or `sniper_reload` (`.ogg`, `.wav`, `.mp3` or `.flac`) in `BepInEx\plugins\ItemPack\SniperRifle\`. Each player uses their own files; they're never committed or shipped.
 
 **Everyone in the lobby needs the same version of the pack**, including the host. Items sync through custom network messages that unmodded players don't understand.
 

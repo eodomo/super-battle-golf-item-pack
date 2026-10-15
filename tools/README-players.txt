@@ -9,12 +9,16 @@ New items for Super Battle Golf:
                   through them; anything that goes in keeps its momentum.
   Steam Whistle - Blow it and a winged tank engine swoops in and sets a player
                   on fire.
-  Sniper Rifle  - Hold aim to scope in, use to fire. One shot knocks someone
-                  out from across the map. 4 shots per pickup.
+  Sniper Rifle  - Halo style. Hold aim to scope in (scroll for 10x), use to
+                  fire. One shot knocks someone out from across the map.
 
 Steam Whistle music: put your own audio file named thomas_theme.ogg (or .mp3,
 .wav, .flac) in BepInEx\plugins\ItemPack\SteamWhistle\ to hear it during the
 attack. None is included.
+
+Sniper Rifle sounds: to replace the built-in ones, put sniper_fire,
+sniper_zoom_in, sniper_zoom_out and/or sniper_reload (.ogg/.wav/.mp3/.flac) in
+BepInEx\plugins\ItemPack\SniperRifle\. None are included.
 
 The items show up in item boxes alongside the normal ones.
 

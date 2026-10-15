@@ -106,4 +106,6 @@ internal abstract class CustomItem
     public virtual void Tick() { }
     /// <summary>Every physics step, before the physics simulation.</summary>
     public virtual void FixedTick() { }
+    /// <summary>Immediate-mode GUI pass (overlays such as a scope).</summary>
+    public virtual void OnGUI() { }
 }

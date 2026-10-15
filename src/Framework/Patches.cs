@@ -75,11 +75,11 @@ internal static class DropItemPatch
 [HarmonyPatch(typeof(PlayerInventory), nameof(PlayerInventory.LocalPlayerUpdateAimingReticle))]
 internal static class AimingReticlePatch
 {
-    // The original picks a crosshair per vanilla item and shows none for ours.
+    // The original picks a crosshair per vanilla item; pack items choose their own (possibly none).
     private static void Postfix(PlayerInventory __instance)
     {
         if (__instance.isLocalPlayer && __instance.IsAimingItem
-            && ItemCatalog.TryGet(__instance.GetEffectivelyEquippedItem(), out CustomItem item) && item.GetAimReticle(__instance) != ReticleType.None)
+            && ItemCatalog.TryGet(__instance.GetEffectivelyEquippedItem(), out CustomItem item))
         {
             ReticleManager.SetReticle(item.GetAimReticle(__instance));
         }

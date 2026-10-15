@@ -67,8 +67,15 @@ internal static class DragonAttacks
         if (NetworkClient.spawned.TryGetValue(playerNetId, out NetworkIdentity identity) && identity != null)
         {
             Vector3 position = identity.transform.position;
-            ItemAudio.Play(WhistleSounds.Whistle, ItemAudio.SfxBus, ItemAudio.Attenuate(position, SteamWhistleItem.SoundVolume.Value, 10f, 90f));
+            ItemAudio.Play(WhistleSounds.Whistle, ItemAudio.SfxBus, WhistleVolume(position));
         }
+    }
+
+    /// <summary>Everyone in the lobby hears the whistle: full volume nearby, never quieter than half across the map.</summary>
+    private static float WhistleVolume(Vector3 position)
+    {
+        float volume = SteamWhistleItem.SoundVolume.Value;
+        return Mathf.Max(ItemAudio.Attenuate(position, volume, 20f, 200f), volume * 0.5f);
     }
 
     public static void Begin(DragonAttack msg)
@@ -189,7 +196,7 @@ internal static class DragonAttacks
         if (!attack.whistled && t >= WhistleTime)
         {
             attack.whistled = true;
-            ItemAudio.Play(WhistleSounds.Whistle, ItemAudio.SfxBus, ItemAudio.Attenuate(position, SteamWhistleItem.SoundVolume.Value, 15f, 140f));
+            ItemAudio.Play(WhistleSounds.Whistle, ItemAudio.SfxBus, WhistleVolume(position));
         }
 
         if (attack.breath != null)

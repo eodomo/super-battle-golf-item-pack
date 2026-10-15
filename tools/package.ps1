@@ -43,6 +43,8 @@ $pluginDir = "$stage\BepInEx\plugins\ItemPack"
 New-Item -ItemType Directory -Force $pluginDir | Out-Null
 Copy-Item $dll $pluginDir
 Copy-Item "$root\Assets\*" $pluginDir -Recurse
+# Never ship audio: optional sound/music replacements are supplied by each player (and may be copyrighted).
+Get-ChildItem $pluginDir -Recurse -Include *.ogg, *.wav, *.mp3, *.flac | Remove-Item
 Copy-Item "$root\tools\README-players.txt" "$pluginDir\README.txt"
 
 # 4. Zip it.

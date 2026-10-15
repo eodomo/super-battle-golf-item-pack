@@ -15,3 +15,9 @@ __pycache__/
 
 # The Steam Whistle theme is supplied by each player and is copyrighted: never commit it.
 thomas_theme.*
+
+# Optional sound replacements players add themselves (e.g. from their own copy of Halo): never commit them.
+sniper_fire.*
+sniper_zoom_in.*
+sniper_zoom_out.*
+sniper_reload.*

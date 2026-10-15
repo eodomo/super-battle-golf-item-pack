@@ -98,11 +98,28 @@ def sphere(radius, matrix, segments=16, rings=10, material=0):
     return set_material(bm, material)
 
 
-def box(size, matrix, material=0):
+def box(size, matrix, material=0, bevel=0.0):
+    """Box of the given size; bevel (meters) rounds off its edges."""
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
     bmesh.ops.scale(bm, vec=Vector(size), verts=bm.verts)
+    if bevel > 0:
+        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(bevel, min(size) * 0.45), segments=2, affect="EDGES", profile=0.5)
     bmesh.ops.transform(bm, matrix=matrix, verts=bm.verts)
+    return set_material(bm, material)
+
+
+def prism(profile, width, material=0, x=0.0, bevel=0.0):
+    """Extrudes a side-view outline [(y, z), ...] across X (centered on x), e.g. a gun's receiver or stock."""
+    bm = bmesh.new()
+    front = [bm.verts.new((x - width / 2, y, z)) for y, z in profile]
+    face = bm.faces.new(front)
+    result = bmesh.ops.extrude_face_region(bm, geom=[face])
+    moved = [v for v in result["geom"] if isinstance(v, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, vec=Vector((width, 0, 0)), verts=moved)
+    if bevel > 0:
+        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=bevel, segments=2, affect="EDGES", profile=0.5, clamp_overlap=True)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     return set_material(bm, material)
 
 

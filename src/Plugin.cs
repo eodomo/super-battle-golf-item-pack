@@ -75,7 +75,21 @@ internal class ItemPackRunner : MonoBehaviour
         ItemMenu.Update();
     }
 
-    private void OnGUI() => ItemMenu.OnGUI();
+    private void OnGUI()
+    {
+        foreach (CustomItem item in ItemCatalog.All)
+        {
+            try
+            {
+                item.OnGUI();
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError($"{item.DisplayName} GUI failed: {e}");
+            }
+        }
+        ItemMenu.OnGUI();
+    }
 
     private void FixedUpdate()
     {
