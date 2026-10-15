@@ -3,8 +3,16 @@ Super Battle Golf Item Pack
 
 New items for Super Battle Golf:
 
-  Banana Peel  - Use to drop a peel, hold aim + use to throw one. Anyone who runs
-                 over it slips and goes flying. 3 peels per pickup.
+  Banana Peel   - Use to drop a peel, hold aim + use to throw one. Anyone who runs
+                  over it slips and goes flying. 3 peels per pickup.
+  Portal Gun    - Use places an orange portal, aim + use places a blue one. See
+                  through them; anything that goes in keeps its momentum.
+  Steam Whistle - Blow it and a winged tank engine swoops in and sets a player
+                  on fire.
+
+Steam Whistle music: put your own audio file named thomas_theme.ogg (or .mp3,
+.wav, .flac) in BepInEx\plugins\ItemPack\SteamWhistle\ to hear it during the
+attack. None is included.
 
 The items show up in item boxes alongside the normal ones.
 

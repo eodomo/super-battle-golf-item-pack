@@ -30,6 +30,8 @@
     <Reference Include="SharedAssembly" HintPath="$(ManagedDir)\SharedAssembly.dll" Private="false" Publicize="true" />
     <Reference Include="AntiCheat" HintPath="$(ManagedDir)\AntiCheat.dll" Private="false" Publicize="true" />
     <Reference Include="Mirror" HintPath="$(ManagedDir)\Mirror.dll" Private="false" />
+    <Reference Include="FMODUnity" HintPath="$(ManagedDir)\FMODUnity.dll" Private="false" />
+    <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(ManagedDir)\UnityEngine.ParticleSystemModule.dll" Private="false" />
     <Reference Include="Unity.InputSystem" HintPath="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
     <Reference Include="Unity.Localization" HintPath="$(ManagedDir)\Unity.Localization.dll" Private="false" />
     <Reference Include="Unity.ResourceManager" HintPath="$(ManagedDir)\Unity.ResourceManager.dll" Private="false" />

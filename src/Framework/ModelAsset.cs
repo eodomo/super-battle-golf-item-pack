@@ -23,7 +23,12 @@ internal class ModelAsset
     private static readonly string[] TextureProperties = { "_BaseMap", "_MainTex", "_Albedo", "_AlbedoMap" };
     private static bool loggedShader;
 
-    public static ModelAsset Load(string directory, string name)
+    /// <summary>The game material the first item's materials were cloned from; extra models can reuse it.</summary>
+    public static Material SharedTemplate { get; private set; }
+
+    public bool HasMaterials => materials != null;
+
+    public static ModelAsset Load(string directory, string name, bool loadIcon = true)
     {
         var asset = new ModelAsset { Name = name };
         try
@@ -38,6 +43,10 @@ internal class ModelAsset
             Plugin.Log.LogError($"Failed to load {name} mesh from {directory}: {e}");
         }
 
+        if (!loadIcon)
+        {
+            return asset;
+        }
         try
         {
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: true);
@@ -64,6 +73,7 @@ internal class ModelAsset
         }
         if (template != null)
         {
+            SharedTemplate ??= template;
             LogShaderProperties(template);
         }
         else

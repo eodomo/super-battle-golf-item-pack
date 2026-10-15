@@ -148,7 +148,7 @@ def export_obj(obj, obj_path, mtl_path, colors, order, title):
     return sum(1 for _ in mesh.loop_triangles)
 
 
-def render_icon(scene, path, ortho_scale, look_at, cam_offset):
+def render_icon(scene, path, ortho_scale, look_at, cam_offset, size=256):
     cam_data = bpy.data.cameras.new("IconCam")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = ortho_scale
@@ -180,8 +180,8 @@ def render_icon(scene, path, ortho_scale, look_at, cam_offset):
     scene.render.engine = "BLENDER_EEVEE" if "BLENDER_EEVEE" in engines else "BLENDER_EEVEE_NEXT"
     scene.view_settings.view_transform = "Standard"
     scene.render.film_transparent = True
-    scene.render.resolution_x = 256
-    scene.render.resolution_y = 256
+    scene.render.resolution_x = size
+    scene.render.resolution_y = size
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
@@ -191,4 +191,5 @@ def render_icon(scene, path, ortho_scale, look_at, cam_offset):
 
 def save_blend(path, scene):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    bpy.data.libraries.write(path, {scene}, fake_user=True)
+    # Write the objects rather than the scene: copying a scene made in background mode can crash Blender 5.2.
+    bpy.data.libraries.write(path, set(scene.objects), fake_user=True)

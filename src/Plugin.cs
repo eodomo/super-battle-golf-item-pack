@@ -33,6 +33,7 @@ public class Plugin : BaseUnityPlugin
         // ---- The pack's items. To add one, write a CustomItem subclass and list it here. ----
         ItemCatalog.Add(new BananaPeelItem());
         ItemCatalog.Add(new PortalGunItem());
+        ItemCatalog.Add(new SteamWhistleItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
