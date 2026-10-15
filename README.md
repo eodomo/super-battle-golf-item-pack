@@ -1,5 +1,7 @@
 # Super Battle Golf Item Pack
 
+**[Download the latest release](https://github.com/eodomo/super-battle-golf-item-pack/releases/latest)** and follow [Install](#install-players) below.
+
 New items for Super Battle Golf. They show up in item boxes alongside the normal ones.
 
 | Item | What it does |
@@ -9,15 +11,32 @@ New items for Super Battle Golf. They show up in item boxes alongside the normal
 **Everyone in the lobby needs the same version of the pack**, including the host. Items sync through custom network messages that unmodded players don't understand.
 
 ## Install (players)
-1. Download `SuperBattleGolfItemPack-vX.Y.Z.zip` from the [Releases](../../releases) page.
-2. In Steam, right-click Super Battle Golf → **Manage → Browse local files**.
-3. Extract the whole zip into that folder. `winhttp.dll` should end up next to `Super Battle Golf.exe`.
-4. Launch the game.
+For the Steam version of Super Battle Golf on Windows (Steam Deck / Linux: see Troubleshooting).
+
+1. Download **`SuperBattleGolfItemPack-vX.Y.Z.zip`** from the [latest release](https://github.com/eodomo/super-battle-golf-item-pack/releases/latest) (under **Assets**).
+2. In Steam, right-click **Super Battle Golf** → **Manage** → **Browse local files**. This opens the game folder, the one with `Super Battle Golf.exe` in it.
+3. Extract the zip **into that folder**: right-click the zip → **Extract All...** → **Browse...** → pick the game folder → **Extract**. If Windows asks about replacing files, choose **Replace**.
+4. Check that `winhttp.dll`, `doorstop_config.ini` and a `BepInEx` folder are now right next to `Super Battle Golf.exe`. If they landed in a subfolder (like `SuperBattleGolfItemPack-v0.2.0\`), move them up into the game folder.
+5. Launch the game. The first launch takes a little longer while BepInEx sets itself up.
 
 The zip includes [BepInEx 5](https://github.com/BepInEx/BepInEx) (the mod loader), so you don't need to install anything else.
 
-**Updating:** extract the new zip over the old one.
-**Uninstalling:** delete `winhttp.dll`, `doorstop_config.ini`, `.doorstop_version`, `changelog.txt` and the `BepInEx` folder.
+**Everyone in the lobby needs the same version of the pack**, including the host.
+
+**Did it work?** After launching, `BepInEx\LogOutput.log` exists in the game folder and mentions "Super Battle Golf Item Pack". From v0.2.0 on, **Settings** → **General** also shows an **Item Pack** row.
+
+**Updating:** from v0.2.0 on, open **Settings** → **General** and click **Check for updates** in the Item Pack row: it downloads and installs the newest release, then restart the game. On older versions, download the new zip and extract it over the old install (choose **Replace**).
+
+**Turning mods off for a while:** open `doorstop_config.ini` in the game folder and change `enabled = true` to `enabled = false` (back to `true` to turn them on again).
+
+**Uninstalling:** delete `winhttp.dll`, `doorstop_config.ini`, `.doorstop_version`, `changelog.txt` and the `BepInEx` folder from the game folder.
+
+### Troubleshooting
+- **Nothing changed in the game / no `LogOutput.log`:** BepInEx didn't start. Usually the files ended up in a subfolder: `winhttp.dll` has to sit right next to `Super Battle Golf.exe` (step 4).
+- **`winhttp.dll` disappeared:** some antivirus programs remove it. It's BepInEx's loader (open source); restore it from quarantine or allow it, then extract the zip again.
+- **Steam Deck / Linux (Proton):** in Steam, open the game's **Properties** → **General** → **Launch options** and enter `WINEDLLOVERRIDES="winhttp=n,b" %command%` so Proton loads BepInEx.
+- **Errors or disconnects when playing together:** make sure everyone (host included) has the pack and is on the same version.
+- **Still stuck:** open an issue on this repo and attach `BepInEx\LogOutput.log`.
 
 ## Settings
 `BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: item box chance, uses per pickup, held model size, and item-specific settings (e.g. slip strength). Item box chances use the host's settings.
