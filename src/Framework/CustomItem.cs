@@ -1,6 +1,7 @@
 using System.Collections;
 using System.IO;
 using BepInEx.Configuration;
+using Mirror;
 using UnityEngine;
 
 namespace ItemPack;
@@ -30,6 +31,12 @@ internal abstract class CustomItem
     /// <summary>File name (without extension) of the .obj/.mtl/_icon.png assets in the item's folder.</summary>
     public abstract string AssetName { get; }
 
+    /// <summary>Crosshair shown while aiming with the item.</summary>
+    public virtual ReticleType AimReticle => ReticleType.None;
+
+    /// <summary>Folder holding the item's assets (plugins\ItemPack\{Key}).</summary>
+    public string AssetDir { get; private set; }
+
     public ItemType Type => (ItemType)Id;
     public EquipmentType Equipment => (EquipmentType)Id;
     public ModelAsset Model { get; private set; }
@@ -58,7 +65,8 @@ internal abstract class CustomItem
         HeldRotation = Bind("HeldRotation", DefaultHeldRotation, "Rotation of the held item (hand space).");
         BindConfig();
 
-        Model = ModelAsset.Load(Path.Combine(pluginDir, Key), AssetName);
+        AssetDir = Path.Combine(pluginDir, Key);
+        Model = ModelAsset.Load(AssetDir, AssetName);
         RegisterMessages();
     }
 
@@ -87,6 +95,12 @@ internal abstract class CustomItem
     public virtual void OnStopServer() { }
     public virtual void OnStartClient() { }
     public virtual void OnStopClient() { }
+    /// <summary>On the server, when a client finishes loading and is ready (e.g. to send it existing state).</summary>
+    public virtual void OnServerReady(NetworkConnectionToClient connection) { }
+    /// <summary>On the server, when a client leaves.</summary>
+    public virtual void OnServerDisconnect(NetworkConnectionToClient connection) { }
     /// <summary>Every frame.</summary>
     public virtual void Tick() { }
+    /// <summary>Every physics step, before the physics simulation.</summary>
+    public virtual void FixedTick() { }
 }

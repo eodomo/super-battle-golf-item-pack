@@ -32,6 +32,7 @@ public class Plugin : BaseUnityPlugin
 
         // ---- The pack's items. To add one, write a CustomItem subclass and list it here. ----
         ItemCatalog.Add(new BananaPeelItem());
+        ItemCatalog.Add(new PortalGunItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
@@ -70,6 +71,21 @@ internal class ItemPackRunner : MonoBehaviour
         if (Plugin.DebugGiveEnabled.Value && Keyboard.current != null && Keyboard.current[Plugin.DebugGiveKey.Value].wasPressedThisFrame)
         {
             DebugGive.GiveNext();
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        foreach (CustomItem item in ItemCatalog.All)
+        {
+            try
+            {
+                item.FixedTick();
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError($"{item.DisplayName} fixed tick failed: {e}");
+            }
         }
     }
 }

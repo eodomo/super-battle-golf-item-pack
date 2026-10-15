@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Mirror;
 using UnityEngine;
 
 namespace ItemPack;
@@ -71,6 +72,20 @@ internal static class DropItemPatch
     }
 }
 
+[HarmonyPatch(typeof(PlayerInventory), nameof(PlayerInventory.LocalPlayerUpdateAimingReticle))]
+internal static class AimingReticlePatch
+{
+    // The original picks a crosshair per vanilla item and shows none for ours.
+    private static void Postfix(PlayerInventory __instance)
+    {
+        if (__instance.isLocalPlayer && __instance.IsAimingItem
+            && ItemCatalog.TryGet(__instance.GetEffectivelyEquippedItem(), out CustomItem item) && item.AimReticle != ReticleType.None)
+        {
+            ReticleManager.SetReticle(item.AimReticle);
+        }
+    }
+}
+
 [HarmonyPatch(typeof(ItemSpawnerSettings), nameof(ItemSpawnerSettings.GetRandomItemFor))]
 internal static class ItemBoxPatch
 {
@@ -114,6 +129,25 @@ internal static class NetworkManagerPatches
         foreach (CustomItem item in ItemCatalog.All)
         {
             item.OnStopServer();
+        }
+    }
+
+    [HarmonyPostfix, HarmonyPatch(nameof(BNetworkManager.OnServerReady))]
+    private static void OnServerReady(NetworkConnectionToClient connection)
+    {
+        foreach (CustomItem item in ItemCatalog.All)
+        {
+            item.OnServerReady(connection);
+        }
+    }
+
+    [HarmonyPrefix, HarmonyPatch(nameof(BNetworkManager.OnServerDisconnect))]
+    private static void OnServerDisconnect(NetworkConnectionToClient connection)
+    {
+        // Prefix: the player object (connection.identity) still exists here.
+        foreach (CustomItem item in ItemCatalog.All)
+        {
+            item.OnServerDisconnect(connection);
         }
     }
 }

@@ -10,3 +10,5 @@ dist/
 # Never commit game files or decompiled game code.
 *.dll
 !tools/**/*.dll
+__pycache__/
+*.pyc
