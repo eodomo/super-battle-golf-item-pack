@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -37,7 +38,13 @@ internal static class SniperScope
     /// <summary>Remembers the unzoomed field of view (called just before scoping in).</summary>
     public static void CaptureBaseFov()
     {
-        if (GameManager.Camera != null && GameManager.Camera.fieldOfView > 20f)
+        // The first-person camera's unzoomed view is the player's field of view setting.
+        float setting = GameSettings.All.Graphics.FieldOfView;
+        if (setting > 20f)
+        {
+            baseFov = setting;
+        }
+        else if (GameManager.Camera != null && GameManager.Camera.fieldOfView > 20f)
         {
             baseFov = GameManager.Camera.fieldOfView;
         }
@@ -68,7 +75,9 @@ internal static class SniperScope
 
     public static void Tick()
     {
-        if (!IsScoped)
+        bool scoped = IsScoped;
+        HideHeldRifle(scoped);
+        if (!scoped)
         {
             rangeMeters = -1f;
             return;
@@ -110,6 +119,38 @@ internal static class SniperScope
         if (CameraModuleController.TryGetFirstPersonModule(out FirstPersonCameraModule firstPerson))
         {
             firstPerson.AnimateFovOffsetOverTime(FovFor(CurrentZoom), duration, BMath.EaseOut);
+        }
+    }
+
+    private static readonly List<Renderer> hiddenRenderers = new();
+
+    /// <summary>
+    /// The game hides your body in first person but not what you're holding, and a rifle this size sits right
+    /// in front of the scope camera. Hide it locally while scoped (other players still see it).
+    /// </summary>
+    private static void HideHeldRifle(bool scoped)
+    {
+        if (scoped && hiddenRenderers.Count == 0 && GameManager.LocalPlayerInfo != null)
+        {
+            foreach (Renderer renderer in GameManager.LocalPlayerInfo.RightHandEquipmentSwitcher.GetComponentsInChildren<Renderer>())
+            {
+                if (renderer.enabled)
+                {
+                    renderer.enabled = false;
+                    hiddenRenderers.Add(renderer);
+                }
+            }
+        }
+        else if (!scoped && hiddenRenderers.Count > 0)
+        {
+            foreach (Renderer renderer in hiddenRenderers)
+            {
+                if (renderer != null)
+                {
+                    renderer.enabled = true;
+                }
+            }
+            hiddenRenderers.Clear();
         }
     }
 
@@ -170,6 +211,13 @@ internal static class SniperScope
         GUI.Label(new Rect(cx - 200f, cy + r * 0.72f, 400f, h * 0.04f), SniperRifleItem.AmmoText(), textStyle);
     }
 
+    /// <summary>0 below <paramref name="edge0"/>, 1 above <paramref name="edge1"/>, smooth in between (Mathf.SmoothStep interpolates values instead).</summary>
+    private static float Edge(float edge0, float edge1, float x)
+    {
+        float t = Mathf.Clamp01((x - edge0) / (edge1 - edge0));
+        return t * t * (3f - 2f * t);
+    }
+
     private static void Line(float x, float y, float width, float height) =>
         GUI.DrawTexture(new Rect(x, y, width, height), Texture2D.whiteTexture);
 
@@ -192,8 +240,8 @@ internal static class SniperScope
                     float dx = (x + 0.5f) / size * 2f - 1f;
                     float dy = (y + 0.5f) / size * 2f - 1f;
                     float dist = Mathf.Sqrt(dx * dx + dy * dy);
-                    float vignette = Mathf.SmoothStep(0.82f, 1f, dist) * 0.55f; // lens darkens toward its edge
-                    float outside = Mathf.SmoothStep(0.985f, 1f, dist);
+                    float vignette = Edge(0.82f, 1f, dist) * 0.55f; // lens darkens toward its edge
+                    float outside = Edge(0.985f, 1f, dist);
                     byte a = (byte)(Mathf.Clamp01(Mathf.Max(vignette, outside)) * 255f);
                     pixels[y * size + x] = new Color32(0, 0, 0, a);
                 }

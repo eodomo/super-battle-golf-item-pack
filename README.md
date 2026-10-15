@@ -5,7 +5,7 @@ New items for Super Battle Golf. They show up in item boxes alongside the normal
 | Item | What it does |
 |---|---|
 | **Banana Peel** | Use to drop a peel at your feet; hold aim + use to throw one. Anyone who runs over a peel slips: a leg-sweep knockout that launches them forward (shields and knockout immunity still protect you). You can't slip on your own peel for the first 2 seconds. 3 peels per pickup. |
-| **Portal Gun** | Use to place an orange portal where you're looking; aim + use to place a blue one. Each player has their own pair. You can see through linked portals, and players, balls, carts and items that go in come out the other portal with their momentum. Portals last until replaced or until the hole ends. 8 shots per pickup. |
+| **Portal Gun** | Left click places a blue portal where you're looking, right click an orange one, like Portal (with Portal's two-color crosshair). Each player has their own pair. You can see through linked portals, and players, balls, carts and items that go in come out the other portal with their momentum. Portals last until replaced or until the hole ends. 8 shots per pickup. |
 | **Steam Whistle** | Blow it and a winged blue tank engine swoops in and sets a player on fire (a random other player by default). A tribute to the famous Skyrim mod. |
 | **Sniper Rifle** | Halo's SRS99, recreated. Hold aim to scope in at 2x (scroll up or middle mouse for 10x) with a Halo-style scope view; use to fire. One shot knocks a player out and goes through up to 2 players. 4-round magazine that reloads itself (taking you out of the scope), 12 rounds per pickup. Everyone hears the shot across the map and sees the vapor trail. |
 

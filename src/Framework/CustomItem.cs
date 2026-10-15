@@ -37,6 +37,15 @@ internal abstract class CustomItem
     /// <summary>Crosshair for the current aiming state (override to change it, e.g. when scoped in).</summary>
     public virtual ReticleType GetAimReticle(PlayerInventory inventory) => AimReticle;
 
+    /// <summary>
+    /// True if the item reads the mouse itself (see its Tick) instead of going through the game's use button,
+    /// e.g. to give left and right click different actions. The game's use input is then swallowed.
+    /// </summary>
+    public virtual bool HandlesOwnInput => false;
+
+    /// <summary>True to keep the aim button from putting the player into aim mode (e.g. when it fires instead).</summary>
+    public virtual bool SuppressAiming => false;
+
     /// <summary>Folder holding the item's assets (plugins\ItemPack\{Key}).</summary>
     public string AssetDir { get; private set; }
 

@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using Mirror;
 using UnityEngine;
@@ -15,6 +19,14 @@ internal static class TryUseItemPatch
             || !ItemCatalog.TryGet(__instance.GetEffectiveSlot(__instance.EquippedItemIndex).itemType, out CustomItem item))
         {
             return true;
+        }
+
+        if (item.HandlesOwnInput)
+        {
+            // The item fires from its own mouse handling; just keep the click from doing anything else.
+            shouldEatInput = !isAirhornReaction;
+            __result = false;
+            return false;
         }
 
         if (!__instance.CanUseEquippedItem(altUse: false, isAirhornReaction, out _, out _, out shouldEatInput, out _))
@@ -148,6 +160,51 @@ internal static class NetworkManagerPatches
         foreach (CustomItem item in ItemCatalog.All)
         {
             item.OnServerDisconnect(connection);
+        }
+    }
+}
+
+[HarmonyPatch]
+internal static class SuppressAimingPatch
+{
+    // The game's "should the player be aiming?" helper reads PlayerInput.IsHoldingAimSwing. For items that
+    // use the aim button for something else, make that read come back false so no aim mode starts.
+    private static readonly MethodInfo AimHeldGetter = AccessTools.PropertyGetter(typeof(PlayerInput), nameof(PlayerInput.IsHoldingAimSwing));
+    private static readonly MethodInfo Replacement = AccessTools.Method(typeof(SuppressAimingPatch), nameof(IsHoldingAimForAiming));
+
+    private static bool Prepare() => TargetMethod() != null;
+
+    private static MethodBase TargetMethod() =>
+        AccessTools.GetDeclaredMethods(typeof(PlayerInventory)).FirstOrDefault(m => m.Name.Contains("<UpdateIsAimingItem>") && m.Name.Contains("ShouldAim"));
+
+    public static bool IsHoldingAimForAiming(PlayerInput input)
+    {
+        PlayerInfo player = input.playerInfo;
+        if (player != null && ItemCatalog.TryGet(player.Inventory.GetEffectivelyEquippedItem(), out CustomItem item) && item.SuppressAiming)
+        {
+            return false;
+        }
+        return input.IsHoldingAimSwing;
+    }
+
+    private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+    {
+        int replaced = 0;
+        foreach (CodeInstruction instruction in instructions)
+        {
+            if (instruction.Calls(AimHeldGetter))
+            {
+                replaced++;
+                yield return new CodeInstruction(OpCodes.Call, Replacement).MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
+            }
+            else
+            {
+                yield return instruction;
+            }
+        }
+        if (replaced == 0)
+        {
+            Plugin.Log.LogWarning("Aim suppression: nothing to patch; the portal gun's right click will also aim.");
         }
     }
 }

@@ -3,24 +3,29 @@ using System.Collections.Generic;
 using BepInEx.Configuration;
 using Mirror;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ItemPack.Items;
 
 /// <summary>
-/// Portal Gun: use places an orange portal where you're looking, aim + use places a blue one. Each player
-/// has their own pair. You can see through linked portals, and players, balls, carts and items that go
-/// through keep their momentum. Portals last until replaced or until the hole ends.
+/// Portal Gun: left click places a blue portal where you're looking, right click an orange one, like Portal.
+/// Each player has their own pair. You can see through linked portals, and players, balls, carts and items
+/// that go through keep their momentum. Portals last until replaced or until the hole ends.
+///
+/// The gun reads the mouse itself (the game only has one "use" button, and right click is its aim button),
+/// so it doesn't enter aim mode and draws its own Portal-style crosshair.
 /// </summary>
 internal class PortalGunItem : CustomItem
 {
     public override int Id => 101;
     public override string Key => "PortalGun";
     public override string DisplayName => "Portal Gun";
-    // The dueling pistol gives us a one-handed gun hold, aiming and a shot animation.
+    // The dueling pistol gives us a one-handed gun hold and a shot animation.
     public override ItemType TemplateItem => ItemType.DuelingPistol;
     public override EquipmentType TemplateEquipment => EquipmentType.DuelingPistol;
     public override string AssetName => "portal_gun";
-    public override ReticleType AimReticle => ReticleType.DuelingPistol;
+    public override bool HandlesOwnInput => true;
+    public override bool SuppressAiming => true;
 
     protected override float DefaultItemBoxChance => 0.08f;
     protected override int DefaultUses => 8;
@@ -33,6 +38,7 @@ internal class PortalGunItem : CustomItem
     internal static ConfigEntry<float> RenderScale;
 
     private const float ShotCooldown = 0.3f;
+    private static float nextShotTime;
 
     protected override void BindConfig()
     {
@@ -51,11 +57,47 @@ internal class PortalGunItem : CustomItem
         data.CanUsageAffectBalls = false;
     }
 
+    // Firing comes from HandleMouse; the game's use button is swallowed (HandlesOwnInput).
     public override IEnumerator UseRoutine(PlayerInventory inventory, bool aiming)
+    {
+        yield break;
+    }
+
+    /// <summary>Left click: blue. Right click: orange. Only while playing (not in menus, chat or the item menu).</summary>
+    private static void HandleMouse()
+    {
+        Mouse mouse = Mouse.current;
+        PlayerInventory inventory = GameManager.LocalPlayerInventory;
+        if (mouse == null || inventory == null || !IsHoldingPortalGun(inventory) || InputManager.CurrentMode != InputMode.Regular)
+        {
+            return;
+        }
+        int color = mouse.leftButton.wasPressedThisFrame ? 0 : mouse.rightButton.wasPressedThisFrame ? 1 : -1;
+        if (color < 0 || Time.time < nextShotTime)
+        {
+            return;
+        }
+        // altUse skips the "needs aiming" check; everything else (knocked out, in a cart, no uses...) still applies.
+        if (!inventory.CanUseEquippedItem(altUse: true, isAirhornReaction: false, out _, out _, out _, out _))
+        {
+            return;
+        }
+        nextShotTime = Time.time + ShotCooldown;
+        inventory.ItemUseTimestamp = Time.timeAsDouble;
+        inventory.CancelItemUse();
+        inventory.itemUseRoutine = inventory.StartCoroutine(FireRoutine(inventory, (byte)color));
+        inventory.PlayerInfo.CancelEmote(canHideEmoteMenu: false);
+        inventory.CancelItemFlourish();
+    }
+
+    private static bool IsHoldingPortalGun(PlayerInventory inventory) =>
+        ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) && item is PortalGunItem;
+
+    private static IEnumerator FireRoutine(PlayerInventory inventory, byte color)
     {
         PlayerInfo player = inventory.PlayerInfo;
         inventory.SetCurrentItemUse(ItemUseType.Regular);
-        byte color = (byte)(aiming ? 0 : 1);
+        player.Movement.AlignWithCameraImmediately();
         Vector3 muzzle = player.RightHandEquipmentSwitcher.transform.position;
 
         if (TryFindPlacement(player, color, out Vector3 position, out Quaternion rotation, out Vector3 aimPoint))
@@ -81,8 +123,83 @@ internal class PortalGunItem : CustomItem
     public override void OnStopClient() => Portals.Clear(0);
     public override void OnServerReady(NetworkConnectionToClient connection) => PortalNet.SendExisting(connection);
     public override void OnServerDisconnect(NetworkConnectionToClient connection) => PortalNet.OnDisconnect(connection);
-    public override void Tick() => Portals.Tick();
+    public override void Tick()
+    {
+        Portals.Tick();
+        HandleMouse();
+    }
     public override void FixedTick() => PortalTravel.FixedTick();
+
+    // ---- crosshair ----
+
+    private static readonly Texture2D[] crosshairs = new Texture2D[4];
+
+    /// <summary>Portal's crosshair: a blue arc on the left and an orange one on the right, bright once that portal is placed.</summary>
+    public override void OnGUI()
+    {
+        if (Event.current.type != EventType.Repaint)
+        {
+            return;
+        }
+        PlayerInventory inventory = GameManager.LocalPlayerInventory;
+        if (inventory == null || !IsHoldingPortalGun(inventory) || InputManager.CurrentMode != InputMode.Regular
+            || !inventory.PlayerInfo.Movement.IsVisible)
+        {
+            return;
+        }
+        uint owner = inventory.PlayerInfo.netId;
+        int state = (Portals.Get(owner, 0) != null ? 1 : 0) | (Portals.Get(owner, 1) != null ? 2 : 0);
+        float size = Screen.height * 0.05f;
+        GUI.color = Color.white;
+        GUI.DrawTexture(new Rect((Screen.width - size) * 0.5f, (Screen.height - size) * 0.5f, size, size), GetCrosshair(state));
+    }
+
+    private static Texture2D GetCrosshair(int state)
+    {
+        if (crosshairs[state] != null)
+        {
+            return crosshairs[state];
+        }
+        const int size = 96;
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, mipChain: false) { name = $"PortalCrosshair{state}", wrapMode = TextureWrapMode.Clamp };
+        var pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f;
+                float dy = (y + 0.5f) / size * 2f - 1f;
+                float r = Mathf.Sqrt(dx * dx + dy * dy);
+                float angle = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg; // 0 = right
+                Color c = Color.clear;
+                if (r < 0.09f)
+                {
+                    c = new Color(1f, 1f, 1f, 0.9f); // center dot
+                }
+                else
+                {
+                    bool left = Mathf.Abs(Mathf.DeltaAngle(angle, 180f)) < 62f;
+                    bool right = Mathf.Abs(Mathf.DeltaAngle(angle, 0f)) < 62f;
+                    if (left || right)
+                    {
+                        int color = left ? 0 : 1;
+                        bool placed = (state & (1 << color)) != 0;
+                        float inner = placed ? 0.62f : 0.72f; // placed: thicker and solid
+                        if (r > inner && r < 0.86f)
+                        {
+                            Color tint = Portals.Colors[color];
+                            c = new Color(tint.r, tint.g, tint.b, placed ? 1f : 0.55f);
+                        }
+                    }
+                }
+                pixels[y * size + x] = c;
+            }
+        }
+        tex.SetPixels32(pixels);
+        tex.Apply();
+        crosshairs[state] = tex;
+        return tex;
+    }
 
     // ---- placement ----
 
