@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using BepInEx.Configuration;
 using Mirror;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ItemPack.Items;
 
@@ -16,11 +17,12 @@ internal enum SaberColor : byte
 /// <summary>
 /// Lightsaber: a blue, green or red one at random. Use to swing (aim to swing where you're looking). Anyone it
 /// connects with is knocked out and falls apart in two at the cut; golf carts are cut in half and destroyed
-/// (their passengers get knocked out too). A few swings per pickup.
+/// (their passengers get knocked out too). Swing as often as you like; only a hit uses it up. Right click throws it:
+/// it spins out along your aim and comes back like a boomerang if it doesn't hit anyone.
 ///
 /// The three colors are three item types that share one name, settings section and item box entry, so a pickup's
 /// color is part of the item itself: everyone sees the same color, and a dropped saber keeps it.
-/// The swing reuses the freeze bomb's throw (an overarm swing of the right hand, which holds the saber).
+/// The swing is a quick sideways slash posed by <see cref="SaberBlade"/>.
 /// </summary>
 internal class LightsaberItem : CustomItem
 {
@@ -33,7 +35,7 @@ internal class LightsaberItem : CustomItem
         new(1f, 0.12f, 0.1f),
     };
 
-    private const int FirstId = 109;
+    internal const int FirstId = 109;
     private const float HiltTop = 0.13f;
 
     public readonly SaberColor Variant;
@@ -58,11 +60,15 @@ internal class LightsaberItem : CustomItem
     public override bool ListedInItemBoxes => IsPrimary;
     public override ItemType RollFromItemBox() => (ItemType)(FirstId + Random.Range(0, 3));
 
-    protected override int DefaultUses => 3;
+    // Right click throws instead of aiming.
+    public override bool SuppressAiming => true;
+
+    protected override int DefaultUses => 1;
 
     public static bool IsLightsaber(ItemType type) => (int)type >= FirstId && (int)type < FirstId + 3;
 
     internal static ConfigEntry<float> Reach;
+    internal static ConfigEntry<float> ThrowRange;
     internal static ConfigEntry<float> BladeLength;
     internal static ConfigEntry<bool> CutCarts;
     internal static ConfigEntry<float> PieceSeconds;
@@ -79,6 +85,7 @@ internal class LightsaberItem : CustomItem
             return;
         }
         Reach = Bind("Reach", 2.6f, "How far a swing reaches (meters).");
+        ThrowRange = Bind("ThrowRange", 20f, "How far a thrown saber flies before it comes back (meters).");
         BladeLength = Bind("BladeLength", 1f, "Length of the blade (meters).");
         CutCarts = Bind("CutCarts", true, "Whether swings cut golf carts in half (destroying them). Host setting.");
         PieceSeconds = Bind("PieceSeconds", 6f, "How long the two halves of a cut golf cart stay around. Local setting.");
@@ -132,6 +139,7 @@ internal class LightsaberItem : CustomItem
         if (IsPrimary)
         {
             SaberSlicer.ClearAll();
+            SaberThrows.ClearAll();
         }
     }
 
@@ -140,6 +148,8 @@ internal class LightsaberItem : CustomItem
         if (IsPrimary)
         {
             SaberSlicer.Tick();
+            SaberThrows.Tick();
+            TryThrow();
         }
     }
 
@@ -263,6 +273,7 @@ internal class LightsaberItem : CustomItem
 
     // ---- swinging ----
 
+    // Swings are free; a pickup's uses only go down when a swing hits someone (or a cart).
     public override IEnumerator UseRoutine(PlayerInventory inventory, bool aiming)
     {
         if (Time.time < nextSwing)
@@ -270,34 +281,32 @@ internal class LightsaberItem : CustomItem
             yield break;
         }
         PlayerInfo player = inventory.PlayerInfo;
-        inventory.SetCurrentItemUse(ItemUseType.Regular); // the freeze bomb's overarm throw is our swing
-        if (aiming)
+        if (SaberThrows.LocalActive)
         {
-            player.Movement.AlignWithCameraImmediately();
+            yield break; // it's still flying
         }
-        float throwTime = GameManager.ItemSettings.FreezeBombThrowTime;
-        float strikeTime = throwTime > 0.05f && throwTime < 1f ? throwTime * 0.85f : 0.2f;
-        nextSwing = Time.time + strikeTime + 0.45f;
-        yield return new WaitForSeconds(strikeTime);
+        player.Movement.AlignWithCameraImmediately();
+        // Alternate forehands and backhands, each picked at random from its kind.
+        lastForehand = !lastForehand;
+        int style = Random.Range(0, SaberBlade.StyleCount / 2) * 2 + (lastForehand ? 0 : 1);
+        SaberNet.Swing(player, (byte)style);
+        nextSwing = Time.time + 0.32f;
+        yield return new WaitForSeconds(SaberBlade.StrikeSeconds);
 
-        ulong useHash = inventory.GetEquippedItemUseHash();
-        inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
-        Strike(inventory, useHash);
-        inventory.CmdValidateAndConsumeItemUse(useHash); // after the hits, like the guns
-
-        yield return new WaitForSeconds(0.4f);
+        Strike(inventory, style);
+        yield return new WaitForSeconds(0.1f);
         ItemUse.Finish(inventory);
     }
 
+    private static bool lastForehand;
     private static readonly Collider[] overlap = new Collider[64];
     private static readonly HashSet<Hittable> struck = new();
+    private static readonly List<(Hittable hittable, Vector3 point, Vector3 flat)> targets = new();
 
-    private void Strike(PlayerInventory inventory, ulong useHash)
+    private void Strike(PlayerInventory inventory, int style)
     {
         PlayerInfo player = inventory.PlayerInfo;
-        player.LocalPlayerCancelSmokeBombInvisibility();
         Vector3 forward = Vector3.ProjectOnPlane(player.transform.forward, Vector3.up).normalized;
-        Vector3 right = Vector3.Cross(Vector3.up, forward);
         Vector3 chest = player.transform.position + Vector3.up * 1.1f;
         SaberBlade blade = player.RightHandEquipmentSwitcher.GetComponentInChildren<SaberBlade>();
         Vector3 contact = blade != null ? blade.BladeMiddle : chest + forward * 0.8f;
@@ -307,6 +316,7 @@ internal class LightsaberItem : CustomItem
         int mask = layers.PlayersMask | (CutCarts.Value || !NetworkServer.active ? layers.GolfCartsMask : 0);
         int count = Physics.OverlapSphereNonAlloc(chest + forward * (reach * 0.5f), reach * 0.65f, overlap, mask, QueryTriggerInteraction.Ignore);
         struck.Clear();
+        targets.Clear();
         for (int i = 0; i < count; i++)
         {
             Hittable hittable = overlap[i].GetComponentInParent<Hittable>();
@@ -329,28 +339,103 @@ internal class LightsaberItem : CustomItem
             }
             Vector3 toTarget = point - chest;
             Vector3 flat = Vector3.ProjectOnPlane(toTarget, Vector3.up);
-            if (toTarget.magnitude > reach || (flat.magnitude > 0.8f && Vector3.Angle(flat, forward) > 75f))
+            if (toTarget.magnitude > reach || (flat.magnitude > 0.8f && Vector3.Angle(flat, forward) > 95f))
             {
-                continue; // behind us or out of reach
+                continue; // behind us or out of reach (the slash sweeps a wide arc in front)
             }
+            targets.Add((hittable, point, flat));
+        }
+        if (targets.Count == 0)
+        {
+            return; // a miss costs nothing
+        }
 
-            Vector3 normal;
-            if (entity.IsPlayer)
+        player.LocalPlayerCancelSmokeBombInvisibility();
+        ulong useHash = inventory.GetEquippedItemUseHash();
+        inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
+        // Cut along the plane the blade swept through, with a little wobble.
+        Vector3 swingNormal = SaberBlade.SwingPlaneNormal(style, forward);
+        foreach ((Hittable hittable, Vector3 point, Vector3 flat) in targets)
+        {
+            Vector3 normal = (swingNormal + Random.insideUnitSphere * 0.15f).normalized;
+            if (hittable.AsEntity.IsPlayer)
             {
-                // Through the body where the blade lands, tilted along the swing: one piece slides off the other.
-                normal = (Vector3.up + forward * 0.35f + right * Random.Range(-0.35f, 0.35f)).normalized;
                 Vector3 direction = flat.sqrMagnitude > 0.01f ? flat.normalized : forward;
                 hittable.HitWithItem(ItemType.DuelingPistol, inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
                     hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(chest),
                     hittable.ItemSettings.DuelingPistolMinKnockbackDistance, inventory, isReflected: false, isInSpecialState: false,
                     canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
             }
-            else
-            {
-                // The swing comes down in a vertical plane along our facing; carts split across it.
-                normal = right;
-            }
             SaberNet.RequestCut(hittable.netId, point, normal, (byte)Variant);
         }
+        inventory.CmdValidateAndConsumeItemUse(useHash); // after the hits, like the guns
+    }
+
+    // ---- throwing ----
+
+    /// <summary>Right click: throw the saber where you're looking (see <see cref="SaberThrows"/>).</summary>
+    private void TryThrow()
+    {
+        if (Mouse.current == null || !Mouse.current.rightButton.wasPressedThisFrame || SaberThrows.LocalActive
+            || !OwnInput.TryGetHolder<LightsaberItem>(out PlayerInventory inventory)
+            || inventory.IsUsingItemAtAll || !OwnInput.CanUse(inventory)
+            || !ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) || item is not LightsaberItem saber)
+        {
+            return;
+        }
+        OwnInput.StartUse(inventory, saber.ThrowRoutine(inventory));
+    }
+
+    private IEnumerator ThrowRoutine(PlayerInventory inventory)
+    {
+        PlayerInfo player = inventory.PlayerInfo;
+        player.Movement.AlignWithCameraImmediately();
+        inventory.SetCurrentItemUse(ItemUseType.Regular); // the freeze bomb's throw
+        float throwTime = GameManager.ItemSettings.FreezeBombThrowTime;
+        yield return new WaitForSeconds(throwTime > 0.05f && throwTime < 1f ? throwTime * 0.85f : 0.2f);
+
+        Camera cam = GameManager.Camera;
+        Vector3 origin = SlingerWebs.HandOf(player);
+        Vector3 direction = cam != null ? cam.transform.forward : player.transform.forward;
+        // Head for what the crosshair is on, so the saber goes where you aim even though it leaves from the hand.
+        if (cam != null && Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit aim, ThrowRange.Value + 10f, ~0, QueryTriggerInteraction.Ignore)
+            && !aim.collider.transform.IsChildOf(player.transform) && (aim.point - origin).sqrMagnitude > 4f)
+        {
+            direction = (aim.point - origin).normalized;
+        }
+        SaberThrows.LocalThrow(inventory, origin, direction, (byte)Variant);
+        // Hands stay empty until the saber is back (or has hit someone, which uses it up).
+        while (SaberThrows.LocalActive)
+        {
+            yield return null;
+        }
+        // (A hit already finished the use and took the saber away.)
+        if (IsLightsaber(inventory.GetEffectiveSlot(inventory.EquippedItemIndex).itemType))
+        {
+            ItemUse.Finish(inventory);
+        }
+    }
+
+    /// <summary>A thrown saber hit someone (or a cart): knock them out and cut them, like a swing. Uses the saber up.</summary>
+    public static void ThrownHit(PlayerInventory inventory, Hittable hittable, Vector3 point, Vector3 direction, Vector3 source, byte color)
+    {
+        if (inventory == null || !IsLightsaber(inventory.GetEffectiveSlot(inventory.EquippedItemIndex).itemType))
+        {
+            return;
+        }
+        inventory.PlayerInfo.LocalPlayerCancelSmokeBombInvisibility();
+        ulong useHash = inventory.GetEquippedItemUseHash();
+        inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
+        if (hittable.AsEntity.IsPlayer)
+        {
+            hittable.HitWithItem(ItemType.DuelingPistol, inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
+                hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(source),
+                hittable.ItemSettings.DuelingPistolMinKnockbackDistance, inventory, isReflected: false, isInSpecialState: false,
+                canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
+        }
+        // The spinning blade cuts flat across.
+        SaberNet.RequestCut(hittable.netId, point, (Vector3.up + Random.insideUnitSphere * 0.15f).normalized, color);
+        inventory.CmdValidateAndConsumeItemUse(useHash);
+        ItemUse.Finish(inventory);
     }
 }

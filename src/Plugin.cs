@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.4.0";
+    public const string Version = "0.5.0";
 
     internal static ManualLogSource Log;
 
@@ -80,7 +80,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 4;
+        const int ConfigVersion = 5;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -125,6 +125,24 @@ public class Plugin : BaseUnityPlugin
                 foreach (ConfigDefinition definition in new System.Collections.Generic.List<ConfigDefinition>(orphans.Keys))
                 {
                     if (definition.Section == "Steam Whistle" && (definition.Key == "MusicVolume" || definition.Key == "MusicSeconds"))
+                    {
+                        orphans.Remove(definition);
+                    }
+                }
+            }
+        }
+        if (stored.Value < 5)
+        {
+            // Dirt blocks and the web slinger last 5 seconds now, and the web slinger's music is gone. The lightsaber
+            // swings freely and its one use is its first hit.
+            DirtBlocksItem.BuildSeconds.Value = (float)DirtBlocksItem.BuildSeconds.DefaultValue;
+            LightsaberItem.Primary.UsesPerPickup.Value = (int)LightsaberItem.Primary.UsesPerPickup.DefaultValue;
+            WebSlingerItem.SlingSeconds.Value = (float)WebSlingerItem.SlingSeconds.DefaultValue;
+            if (AccessTools.Property(typeof(ConfigFile), "OrphanedEntries")?.GetValue(Config) is System.Collections.Generic.Dictionary<ConfigDefinition, string> orphans)
+            {
+                foreach (ConfigDefinition definition in new System.Collections.Generic.List<ConfigDefinition>(orphans.Keys))
+                {
+                    if (definition.Section == "Web Slinger" && (definition.Key == "PlayTheme" || definition.Key == "MusicVolume"))
                     {
                         orphans.Remove(definition);
                     }

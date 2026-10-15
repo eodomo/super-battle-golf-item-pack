@@ -25,7 +25,7 @@ public struct WebDetach : NetworkMessage
 }
 
 /// <summary>
-/// Tells everyone when a player's web sticks and lets go, so they can see the strand and hear the theme.
+/// Tells everyone when a player's web sticks and lets go, so they can see the strand and hear the thwip.
 /// The swinging itself is the swinger's own physics (players move themselves); these messages are for show.
 /// </summary>
 internal static class SlingerNet
@@ -103,11 +103,11 @@ internal static class SlingerNet
     private static bool IsLocal(uint netId) => GameManager.LocalPlayerInfo != null && GameManager.LocalPlayerInfo.netId == netId;
 }
 
-/// <summary>The web strands and theme music of everyone who's swinging, on each client.</summary>
+/// <summary>The web strands of everyone who's swinging, on each client.</summary>
 internal static class SlingerWebs
 {
     private const float ShootSeconds = 0.09f;
-    private const float MusicLingerSeconds = 0.9f;
+    private const float LingerSeconds = 0.9f;
 
     private class View
     {
@@ -119,7 +119,6 @@ internal static class SlingerWebs
         public float detachTime;
         public LineRenderer line;
         public GameObject splat;
-        public FMOD.Channel music;
     }
 
     private static readonly Dictionary<uint, View> views = new();
@@ -143,10 +142,6 @@ internal static class SlingerWebs
         float volume = ItemAudio.Attenuate(anchor, WebSlingerItem.SoundVolume.Value, 15f, 90f);
         ItemAudio.Play(SlingerSounds.Thwip, ItemAudio.SfxBus, volume);
         ItemAudio.Play(SlingerSounds.Snap, ItemAudio.SfxBus, volume * 0.8f);
-        if (WebSlingerItem.PlayTheme.Value && !view.music.hasHandle())
-        {
-            view.music = ItemAudio.Play(SlingerSounds.Theme, ItemAudio.SfxBus, 0f);
-        }
     }
 
     public static void Detach(uint netId)
@@ -185,20 +180,9 @@ internal static class SlingerWebs
                 view.line.SetPosition(1, Vector3.Lerp(hand, view.anchor, shot));
                 view.line.startWidth = view.line.endWidth = 0.035f;
             }
-            else if (Time.time - view.detachTime > MusicLingerSeconds)
+            else if (Time.time - view.detachTime > LingerSeconds)
             {
                 gone.Add(view.netId);
-                continue;
-            }
-            if (view.music.hasHandle())
-            {
-                bool local = GameManager.LocalPlayerInfo == view.player;
-                float volume = local
-                    ? WebSlingerItem.MusicVolume.Value
-                    : ItemAudio.Attenuate(view.player.transform.position, WebSlingerItem.MusicVolume.Value, 12f, 80f);
-                // Fade out quickly once the swing is over.
-                float fade = view.attached ? 1f : Mathf.Clamp01(1f - (Time.time - view.detachTime) / MusicLingerSeconds);
-                ItemAudio.SetVolume(view.music, volume * fade);
             }
         }
         foreach (uint netId in gone)
@@ -230,7 +214,6 @@ internal static class SlingerWebs
         {
             return;
         }
-        ItemAudio.Stop(view.music);
         if (view.line != null)
         {
             Object.Destroy(view.line.gameObject);

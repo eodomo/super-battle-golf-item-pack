@@ -191,4 +191,19 @@ internal static class SuppressAimingPatch
             Plugin.Log.LogWarning("Aim suppression: nothing to patch; the portal gun's right click will also aim.");
         }
     }
+
+    // Items with AimWhileUsing keep aiming while in use (e.g. charging the kamehameha with the aim button held).
+    private static void Postfix(ref bool __result)
+    {
+        PlayerInventory inventory = GameManager.LocalPlayerInventory;
+        if (__result || inventory == null || !inventory.IsUsingItemAtAll
+            || !ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) || !item.AimWhileUsing)
+        {
+            return;
+        }
+        PlayerInfo player = inventory.PlayerInfo;
+        __result = player.Input.IsHoldingAimSwing && !inventory.localPlayerIsEquipmentForceHidden
+            && !player.Movement.IsKnockedOutOrRecovering && !player.Movement.IsRespawningOrDrowning
+            && player.AsHittable.FrozenState != FrozenState.Frozen && !player.AsGolfer.IsMatchResolved;
+    }
 }

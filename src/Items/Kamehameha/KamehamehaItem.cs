@@ -23,7 +23,9 @@ internal class KamehamehaItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.FlashCamera;
     public override string AssetName => "kamehameha";
     public override bool HandlesOwnInput => true;
-    public override bool SuppressAiming => true;
+    // Holding right click aims like the dueling pistol (crosshair, slower walk, closer camera), also while charging.
+    public override ReticleType AimReticle => ReticleType.DuelingPistol;
+    public override bool AimWhileUsing => true;
     protected override bool HasMesh => false;
 
     protected override int DefaultUses => 1;
@@ -93,8 +95,7 @@ internal class KamehamehaItem : CustomItem
     public override void Tick()
     {
         KameEffects.Tick();
-        bool holding = OwnInput.TryGetHolder<KamehamehaItem>(out PlayerInventory inventory);
-        if (charging && (!holding || inventory.PlayerInfo.Movement.IsKnockedOutOrRecovering))
+        bool holding = OwnInput.TryGetHolder<KamehamehaItem>(out PlayerInventory inventory);        if (charging && (!holding || inventory.PlayerInfo.Movement.IsKnockedOutOrRecovering))
         {
             CancelCharge(inventory);
             return;

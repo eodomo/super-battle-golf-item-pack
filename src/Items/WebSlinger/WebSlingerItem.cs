@@ -8,11 +8,11 @@ namespace ItemPack.Items;
 /// <summary>
 /// Web Slinger (Spider-Man): your first click starts a timer, and until it runs out you can sling webs. Hold
 /// left click to shoot a web at what you're aiming at; it sticks and you swing from it like a pendulum, reeling
-/// in a little as you go. Let go of the button to release and keep your speed. The Spider-Man style theme
-/// plays while you swing. When the timer ends the item is used up.
+/// in a little as you go. Let go of the button to release and keep your speed. When the timer ends the item is
+/// used up.
 ///
 /// Each player moves their own golfer, so the swing is applied to the local player's rigidbody every physics
-/// step (see <see cref="FixedTick"/>); everyone else just sees the strand and hears the music.
+/// step (see <see cref="FixedTick"/>); everyone else just sees the strand and hears the thwip.
 /// </summary>
 internal class WebSlingerItem : CustomItem
 {
@@ -35,9 +35,7 @@ internal class WebSlingerItem : CustomItem
     internal static ConfigEntry<float> ReelSpeed;
     internal static ConfigEntry<float> PullStrength;
     internal static ConfigEntry<float> MaxSpeed;
-    internal static ConfigEntry<bool> PlayTheme;
     internal static ConfigEntry<float> SoundVolume;
-    internal static ConfigEntry<float> MusicVolume;
 
     private const float MinRope = 4f;
     private const float AimAssistRadius = 1.5f;
@@ -55,14 +53,12 @@ internal class WebSlingerItem : CustomItem
 
     protected override void BindConfig()
     {
-        SlingSeconds = Bind("SlingSeconds", 30f, "How long you can sling webs after your first click.");
+        SlingSeconds = Bind("SlingSeconds", 5f,"How long you can sling webs after your first click.");
         MaxRange = Bind("MaxRange", 70f, "How far a web can reach (meters).");
         ReelSpeed = Bind("ReelSpeed", 4f, "How fast the web reels you in while you swing (m/s). 0 for a plain pendulum.");
         PullStrength = Bind("PullStrength", 55f, "How hard the web pulls you toward where it stuck (m/s per second).");
         MaxSpeed = Bind("MaxSpeed", 32f, "Fastest you can go while swinging (m/s).");
-        PlayTheme = Bind("PlayTheme", true, "Plays a Spider-Man style theme while swinging. Local setting.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the web sounds (0-1). Local setting.");
-        MusicVolume = Bind("MusicVolume", 0.7f, "Volume of the theme (0-1). Local setting.");
     }
 
     // Shooting and swinging come from Tick/FixedTick (hold left click); the game's use button is swallowed.
@@ -119,6 +115,10 @@ internal class WebSlingerItem : CustomItem
         if (!slinging)
         {
             return;
+        }
+        if (inventory.PlayerInfo.Movement.IsVisible)
+        {
+            TimerWheel.Show(secondsLeft / Mathf.Max(0.01f, SlingSeconds.Value));
         }
 
         if (Mouse.current.leftButton.wasPressedThisFrame && !attached && CanSwing(player))
@@ -275,27 +275,5 @@ internal class WebSlingerItem : CustomItem
         {
             player.Movement.Unground();
         }
-    }
-
-    private static GUIStyle hudStyle;
-
-    /// <summary>A small readout under the crosshair: the seconds left, or a hint to start the timer.</summary>
-    public override void OnGUI()
-    {
-        if (Event.current.type != EventType.Repaint || !OwnInput.TryGetHolder<WebSlingerItem>(out PlayerInventory inventory)
-            || !inventory.PlayerInfo.Movement.IsVisible)
-        {
-            return;
-        }
-        string text = slinging
-            ? $"Web time: {Mathf.Max(0f, secondsLeft):0.0}s"
-            : $"Click to start slinging ({SlingSeconds.Value:0}s). Hold to swing!";
-        hudStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
-        hudStyle.fontSize = Mathf.RoundToInt(Screen.height * 0.03f);
-        var rect = new Rect(0f, Screen.height * 0.17f, Screen.width, Screen.height * 0.05f);
-        hudStyle.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
-        GUI.Label(new Rect(rect.x + 2f, rect.y + 2f, rect.width, rect.height), text, hudStyle);
-        hudStyle.normal.textColor = slinging && secondsLeft < 3f ? new Color(1f, 0.45f, 0.35f) : Color.white;
-        GUI.Label(rect, text, hudStyle);
     }
 }

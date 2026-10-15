@@ -49,6 +49,9 @@ internal abstract class CustomItem
     /// <summary>True to keep the aim button from putting the player into aim mode (e.g. when it fires instead).</summary>
     public virtual bool SuppressAiming => false;
 
+    /// <summary>True to stay in aim mode while the item is in use (the game normally drops aiming then).</summary>
+    public virtual bool AimWhileUsing => false;
+
     /// <summary>False if the item has no .obj (e.g. its held model is built in code); only the icon is loaded.</summary>
     protected virtual bool HasMesh => true;
 

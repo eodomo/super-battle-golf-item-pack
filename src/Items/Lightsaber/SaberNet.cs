@@ -20,7 +20,37 @@ public struct SaberCut : NetworkMessage
     public byte color;
 }
 
+/// <summary>A thrown saber: 0 = thrown (from origin along direction), 1 = turned back (at origin), 2 = gone.</summary>
+public struct SaberThrowRequest : NetworkMessage
+{
+    public byte state;
+    public Vector3 origin;
+    public Vector3 direction;
+    public byte color;
+}
+
+public struct SaberThrowState : NetworkMessage
+{
+    public uint throwerNetId;
+    public byte state;
+    public Vector3 origin;
+    public Vector3 direction;
+    public byte color;
+}
+
+public struct SaberSwingRequest : NetworkMessage
+{
+    public byte style;
+}
+
+public struct SaberSwing : NetworkMessage
+{
+    public uint swingerNetId;
+    public byte style;
+}
+
 /// <summary>
+/// Swings are relayed through the host so everyone sees them (they're only for show).
 /// Cuts go through the host: the swinger asks, the host checks it's plausible, tells everyone (who all show the
 /// pieces), and for golf carts throws the passengers out knocked out and destroys the cart. Knocking out a player
 /// who was hit goes through the game's own item hits (see <see cref="LightsaberItem"/>), so shields, teams and
@@ -29,7 +59,7 @@ public struct SaberCut : NetworkMessage
 internal static class SaberNet
 {
     private const double MinCutInterval = 0.15;
-    private const float MaxCutDistance = 7f;
+    private const float MaxCutDistance = 40f; // thrown sabers reach far
 
     private static readonly Dictionary<(int connection, uint target), double> lastCut = new();
 
@@ -39,15 +69,84 @@ internal static class SaberNet
         Reader<SaberCutRequest>.read = r => new SaberCutRequest { targetNetId = r.ReadUInt(), point = r.ReadVector3(), normal = r.ReadVector3(), color = r.ReadByte() };
         Writer<SaberCut>.write = (w, m) => { w.WriteUInt(m.targetNetId); w.WriteVector3(m.point); w.WriteVector3(m.normal); w.WriteByte(m.color); };
         Reader<SaberCut>.read = r => new SaberCut { targetNetId = r.ReadUInt(), point = r.ReadVector3(), normal = r.ReadVector3(), color = r.ReadByte() };
+        Writer<SaberSwingRequest>.write = (w, m) => w.WriteByte(m.style);
+        Reader<SaberSwingRequest>.read = r => new SaberSwingRequest { style = r.ReadByte() };
+        Writer<SaberSwing>.write = (w, m) => { w.WriteUInt(m.swingerNetId); w.WriteByte(m.style); };
+        Reader<SaberSwing>.read = r => new SaberSwing { swingerNetId = r.ReadUInt(), style = r.ReadByte() };
+        Writer<SaberThrowRequest>.write = (w, m) => { w.WriteByte(m.state); w.WriteVector3(m.origin); w.WriteVector3(m.direction); w.WriteByte(m.color); };
+        Reader<SaberThrowRequest>.read = r => new SaberThrowRequest { state = r.ReadByte(), origin = r.ReadVector3(), direction = r.ReadVector3(), color = r.ReadByte() };
+        Writer<SaberThrowState>.write = (w, m) => { w.WriteUInt(m.throwerNetId); w.WriteByte(m.state); w.WriteVector3(m.origin); w.WriteVector3(m.direction); w.WriteByte(m.color); };
+        Reader<SaberThrowState>.read = r => new SaberThrowState { throwerNetId = r.ReadUInt(), state = r.ReadByte(), origin = r.ReadVector3(), direction = r.ReadVector3(), color = r.ReadByte() };
+    }
+
+    public static void SendThrowState(byte state, Vector3 origin, Vector3 direction, byte color)
+    {
+        if (NetworkClient.active)
+        {
+            NetworkClient.Send(new SaberThrowRequest { state = state, origin = origin, direction = direction, color = color });
+        }
     }
 
     public static void RegisterServerHandlers()
     {
         lastCut.Clear();
         NetworkServer.RegisterHandler<SaberCutRequest>(OnServerCutRequest);
+        NetworkServer.RegisterHandler<SaberSwingRequest>((conn, msg) =>
+        {
+            if (conn.identity != null)
+            {
+                NetworkServer.SendToAll(new SaberSwing { swingerNetId = conn.identity.netId, style = msg.style });
+            }
+        });
+        NetworkServer.RegisterHandler<SaberThrowRequest>((conn, msg) =>
+        {
+            if (conn.identity != null && msg.state <= 2 && msg.color <= 2)
+            {
+                NetworkServer.SendToAll(new SaberThrowState
+                {
+                    throwerNetId = conn.identity.netId, state = msg.state, origin = msg.origin, direction = msg.direction, color = msg.color,
+                });
+            }
+        });
     }
 
-    public static void RegisterClientHandlers() => NetworkClient.ReplaceHandler<SaberCut>(OnClientCut);
+    public static void RegisterClientHandlers()
+    {
+        NetworkClient.ReplaceHandler<SaberCut>(OnClientCut);
+        NetworkClient.ReplaceHandler<SaberThrowState>(SaberThrows.OnState);
+        NetworkClient.ReplaceHandler<SaberSwing>(msg =>
+        {
+            // The swinger already played it.
+            if (GameManager.LocalPlayerInfo != null && GameManager.LocalPlayerInfo.netId == msg.swingerNetId)
+            {
+                return;
+            }
+            if (NetworkClient.spawned.TryGetValue(msg.swingerNetId, out NetworkIdentity identity) && identity != null
+                && identity.TryGetComponent(out PlayerInfo player))
+            {
+                PlaySwing(player, msg.style);
+            }
+        });
+    }
+
+    /// <summary>Plays a swing on this player's saber here, and for the local player, on everyone else's screen.</summary>
+    public static void Swing(PlayerInfo player, byte style)
+    {
+        PlaySwing(player, style);
+        if (NetworkClient.active)
+        {
+            NetworkClient.Send(new SaberSwingRequest { style = style });
+        }
+    }
+
+    private static void PlaySwing(PlayerInfo player, byte style)
+    {
+        SaberBlade blade = player.RightHandEquipmentSwitcher != null ? player.RightHandEquipmentSwitcher.GetComponentInChildren<SaberBlade>() : null;
+        if (blade != null)
+        {
+            blade.PlaySwing(style);
+        }
+    }
 
     public static void ResetServer() => lastCut.Clear();
 
