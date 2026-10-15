@@ -176,23 +176,6 @@ internal class KamehamehaItem : CustomItem
         ItemUse.Finish(inventory);
     }
 
-    private static int solidMask = -1;
-
     /// <summary>World geometry that stops the beam (not players, balls or items).</summary>
-    private static int SolidMask
-    {
-        get
-        {
-            if (solidMask == -1)
-            {
-                LayerSettings layers = GameManager.LayerSettings;
-                int mask = Physics.DefaultRaycastLayers;
-                mask &= ~layers.PlayersMask & ~layers.GolfCartsMask & ~layers.BallMask & ~layers.DynamicBallMask & ~layers.FoliageMask;
-                mask &= ~(1 << layers.ItemsLayer) & ~(1 << layers.VfxLayer) & ~(1 << layers.ElectromagnetShieldLayer)
-                    & ~(1 << layers.GolfCartPassengersLayer) & ~(1 << layers.HittablesLayer);
-                solidMask = mask;
-            }
-            return solidMask;
-        }
-    }
+    private static int SolidMask => WorldMask.Solid;
 }

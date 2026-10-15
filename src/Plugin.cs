@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.3.0";
+    public const string Version = "0.4.0";
 
     internal static ManualLogSource Log;
 
@@ -54,6 +54,7 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new LightsaberItem(SaberColor.Blue));
         ItemCatalog.Add(new LightsaberItem(SaberColor.Green));
         ItemCatalog.Add(new LightsaberItem(SaberColor.Red));
+        ItemCatalog.Add(new WebSlingerItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
