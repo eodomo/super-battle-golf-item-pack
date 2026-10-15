@@ -34,6 +34,9 @@ internal abstract class CustomItem
     /// <summary>Crosshair shown while aiming with the item.</summary>
     public virtual ReticleType AimReticle => ReticleType.None;
 
+    /// <summary>Crosshair for the current aiming state (override to change it, e.g. when scoped in).</summary>
+    public virtual ReticleType GetAimReticle(PlayerInventory inventory) => AimReticle;
+
     /// <summary>Folder holding the item's assets (plugins\ItemPack\{Key}).</summary>
     public string AssetDir { get; private set; }
 

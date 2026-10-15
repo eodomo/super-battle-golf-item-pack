@@ -9,6 +9,8 @@ New items for Super Battle Golf:
                   through them; anything that goes in keeps its momentum.
   Steam Whistle - Blow it and a winged tank engine swoops in and sets a player
                   on fire.
+  Sniper Rifle  - Hold aim to scope in, use to fire. One shot knocks someone
+                  out from across the map. 4 shots per pickup.
 
 Steam Whistle music: put your own audio file named thomas_theme.ogg (or .mp3,
 .wav, .flac) in BepInEx\plugins\ItemPack\SteamWhistle\ to hear it during the
@@ -36,5 +38,6 @@ After the first launch, BepInEx\config\eodomo.superbattlegolf.itempack.cfg holds
 the settings (item box chances, uses per pickup, slip strength, ...). Item box
 chances use the host's settings.
 
-The host can press F6 to give themselves a pack item, but only in the Driving
-Range or when the match has cheats turned on.
+For testing, the host can press F7 for a menu that gives any item, or F6 for the
+next pack item. Both only work in the Driving Range or when the match has
+cheats turned on.

@@ -20,20 +20,23 @@ public class Plugin : BaseUnityPlugin
 
     internal static ConfigEntry<bool> DebugGiveEnabled;
     internal static ConfigEntry<Key> DebugGiveKey;
+    internal static ConfigEntry<Key> MenuKey;
 
     private void Awake()
     {
         Log = Logger;
 
         DebugGiveEnabled = Config.Bind("Debug", "GiveKeyEnabled", true,
-            "Lets the host give themselves pack items with the key below. Only works in the Driving Range, " +
+            "Lets the host give themselves items with the keys below. Only works in the Driving Range, " +
             "or in a match with the game's cheats (console commands) rule turned on.");
         DebugGiveKey = Config.Bind("Debug", "GiveKey", Key.F6, "Gives the host the next pack item (cycles through all of them).");
+        MenuKey = Config.Bind("Debug", "MenuKey", Key.F7, "Opens a menu to give the host any pack item or game item.");
 
         // ---- The pack's items. To add one, write a CustomItem subclass and list it here. ----
         ItemCatalog.Add(new BananaPeelItem());
         ItemCatalog.Add(new PortalGunItem());
         ItemCatalog.Add(new SteamWhistleItem());
+        ItemCatalog.Add(new SniperRifleItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
@@ -68,12 +71,11 @@ internal class ItemPackRunner : MonoBehaviour
                 Plugin.Log.LogError($"{item.DisplayName} tick failed: {e}");
             }
         }
-
-        if (Plugin.DebugGiveEnabled.Value && Keyboard.current != null && Keyboard.current[Plugin.DebugGiveKey.Value].wasPressedThisFrame)
-        {
-            DebugGive.GiveNext();
-        }
+        Beams.Tick();
+        ItemMenu.Update();
     }
+
+    private void OnGUI() => ItemMenu.OnGUI();
 
     private void FixedUpdate()
     {
@@ -88,34 +90,5 @@ internal class ItemPackRunner : MonoBehaviour
                 Plugin.Log.LogError($"{item.DisplayName} fixed tick failed: {e}");
             }
         }
-    }
-}
-
-internal static class DebugGive
-{
-    private static int next;
-
-    public static void GiveNext()
-    {
-        PlayerInventory inventory = GameManager.LocalPlayerInventory;
-        if (inventory == null || ItemCatalog.All.Count == 0)
-        {
-            Plugin.Log.LogInfo("Give: no local player yet.");
-            return;
-        }
-        if (!Mirror.NetworkServer.active)
-        {
-            Plugin.Log.LogInfo("Give: only the host can give items.");
-            return;
-        }
-        if (!SingletonBehaviour<DrivingRangeManager>.HasInstance && !MatchSetupRules.IsCheatsEnabled())
-        {
-            Plugin.Log.LogInfo("Give: only allowed in the Driving Range or with cheats enabled.");
-            return;
-        }
-        CustomItem item = ItemCatalog.All[next % ItemCatalog.All.Count];
-        next++;
-        bool added = inventory.ServerTryAddItem(item.Type, item.UsesPerPickup.Value);
-        Plugin.Log.LogInfo(added ? $"Gave the local player a {item.DisplayName}." : "Give failed (inventory full?).");
     }
 }

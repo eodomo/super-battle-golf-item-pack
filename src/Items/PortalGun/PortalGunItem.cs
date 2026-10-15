@@ -67,7 +67,7 @@ internal class PortalGunItem : CustomItem
         else
         {
             // Fizzle: no portal, no use taken.
-            PortalBeams.Show(muzzle, aimPoint, new Color(0.6f, 0.6f, 0.6f), 0.12f);
+            Beams.Show(muzzle, aimPoint, new Color(0.6f, 0.6f, 0.6f), 0.12f);
         }
 
         yield return new WaitForSeconds(ShotCooldown);
@@ -81,11 +81,7 @@ internal class PortalGunItem : CustomItem
     public override void OnStopClient() => Portals.Clear(0);
     public override void OnServerReady(NetworkConnectionToClient connection) => PortalNet.SendExisting(connection);
     public override void OnServerDisconnect(NetworkConnectionToClient connection) => PortalNet.OnDisconnect(connection);
-    public override void Tick()
-    {
-        Portals.Tick();
-        PortalBeams.Tick();
-    }
+    public override void Tick() => Portals.Tick();
     public override void FixedTick() => PortalTravel.FixedTick();
 
     // ---- placement ----
@@ -212,52 +208,5 @@ internal class PortalGunItem : CustomItem
             surfaceMask = mask;
         }
         return surfaceMask;
-    }
-}
-
-/// <summary>Short-lived glowing beams from the gun to where the shot landed.</summary>
-internal static class PortalBeams
-{
-    private const float Duration = 0.18f;
-    private static readonly List<(LineRenderer line, float start)> beams = new();
-    private static Material material;
-
-    public static void Show(Vector3 from, Vector3 to, Color color, float width)
-    {
-        material ??= UnlitMaterials.Additive(UnlitMaterials.SoftDot, Color.white);
-        var go = new GameObject("PortalBeam");
-        var line = go.AddComponent<LineRenderer>();
-        line.sharedMaterial = material;
-        line.positionCount = 2;
-        line.SetPosition(0, from);
-        line.SetPosition(1, to);
-        line.startWidth = width;
-        line.endWidth = width * 0.6f;
-        line.startColor = color;
-        line.endColor = color;
-        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        beams.Add((line, Time.time));
-    }
-
-    public static void Tick()
-    {
-        for (int i = beams.Count - 1; i >= 0; i--)
-        {
-            (LineRenderer line, float start) = beams[i];
-            float age = (Time.time - start) / Duration;
-            if (line == null || age >= 1f)
-            {
-                if (line != null)
-                {
-                    Object.Destroy(line.gameObject);
-                }
-                beams.RemoveAt(i);
-                continue;
-            }
-            Color c = line.startColor;
-            c.a = 1f - age;
-            line.startColor = c;
-            line.endColor = c;
-        }
     }
 }

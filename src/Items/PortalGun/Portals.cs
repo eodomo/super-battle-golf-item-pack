@@ -84,7 +84,7 @@ internal static class Portals
         if (NetworkClient.spawned.TryGetValue(owner, out NetworkIdentity identity) && identity != null
             && identity.TryGetComponent(out PlayerInfo shooter))
         {
-            PortalBeams.Show(shooter.RightHandEquipmentSwitcher.transform.position, position, Colors[color] * 1.5f, 0.08f);
+            Beams.Show(shooter.RightHandEquipmentSwitcher.transform.position, position, Colors[color] * 1.5f, 0.08f);
         }
     }
 

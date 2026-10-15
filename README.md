@@ -7,6 +7,7 @@ New items for Super Battle Golf. They show up in item boxes alongside the normal
 | **Banana Peel** | Use to drop a peel at your feet; hold aim + use to throw one. Anyone who runs over a peel slips: a leg-sweep knockout that launches them forward (shields and knockout immunity still protect you). You can't slip on your own peel for the first 2 seconds. 3 peels per pickup. |
 | **Portal Gun** | Use to place an orange portal where you're looking; aim + use to place a blue one. Each player has their own pair. You can see through linked portals, and players, balls, carts and items that go in come out the other portal with their momentum. Portals last until replaced or until the hole ends. 8 shots per pickup. |
 | **Steam Whistle** | Blow it and a winged blue tank engine swoops in and sets a player on fire (a random other player by default). A tribute to the famous Skyrim mod. |
+| **Sniper Rifle** | Halo style. Hold aim to look through a zoomed scope, use to fire: a long-range hitscan shot that knocks out whoever it hits, with no recoil dive. Scoped shots go exactly where the crosshair is; hip fire spreads a little. 4 shots per pickup. |
 
 **Steam Whistle theme:** no music ships with the pack. To hear one during the attack, put an audio file named `thomas_theme.ogg` (or `.mp3`, `.wav`, `.flac`) in `BepInEx\plugins\ItemPack\SteamWhistle\`. Each player hears their own file, and it's never committed to this repo.
 
@@ -26,7 +27,7 @@ The zip includes [BepInEx 5](https://github.com/BepInEx/BepInEx) (the mod loader
 ## Settings
 `BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: item box chance, uses per pickup, held model size, and item-specific settings (e.g. slip strength). Item box chances use the host's settings.
 
-The host can press **F6** to give themselves the next pack item. It only works in the Driving Range, or in a match with the game's cheats (console commands) rule turned on. Turn it off with `[Debug] GiveKeyEnabled`.
+For testing, the host can press **F7** to open a menu that gives any pack item or game item, or **F6** to get the next pack item. Both only work in the Driving Range, or in a match with the game's cheats (console commands) rule turned on. Turn them off with `[Debug] GiveKeyEnabled`.
 
 ## Build
 Requires the .NET SDK (8 or 9) and the game with BepInEx installed (the build references the game's DLLs; none are committed).
@@ -69,6 +70,8 @@ Do **not** add pack items to the game's `ItemPool`: `MatchSetupRules` indexes it
 | `src/Items/BananaPeel/` | Banana Peel: use routines, Mirror messages (host arbitrates spawns and slips), deterministic peel flight and slip detection |
 | `src/Items/PortalGun/` | Portal Gun: placement (fits portals flat onto surfaces), host-relayed portal state, see-through rendering (a camera per portal into a render texture; the surface's UVs are recomputed each frame because the game can't load new shaders), momentum-keeping travel |
 | `src/Items/SteamWhistle/` | Steam Whistle: host picks the target, every client plays the dragon's flight, fire particles and synthesized sounds; the target's own client applies the knockout |
+| `src/Items/SniperRifle/` | Sniper Rifle: reuses the Elephant Gun's hit handling without its recoil dive; Harmony transpilers make the Railgun's scope checks accept it |
+| `src/Framework/ItemMenu.cs` | The F7 give menu and F6 quick give (host only, Driving Range or cheats on) |
 | `src/Framework/ItemAudio.cs` | Plays sounds through the game's FMOD buses, so its volume sliders apply |
 | `Assets/<Item>/` | Per-item models and icon, installed to `BepInEx\plugins\ItemPack\<Item>\` |
 | `blender/` | Model scripts; run headless with `blender --background --factory-startup --python blender/<Item>/build_*.py` |

@@ -79,9 +79,9 @@ internal static class AimingReticlePatch
     private static void Postfix(PlayerInventory __instance)
     {
         if (__instance.isLocalPlayer && __instance.IsAimingItem
-            && ItemCatalog.TryGet(__instance.GetEffectivelyEquippedItem(), out CustomItem item) && item.AimReticle != ReticleType.None)
+            && ItemCatalog.TryGet(__instance.GetEffectivelyEquippedItem(), out CustomItem item) && item.GetAimReticle(__instance) != ReticleType.None)
         {
-            ReticleManager.SetReticle(item.AimReticle);
+            ReticleManager.SetReticle(item.GetAimReticle(__instance));
         }
     }
 }
