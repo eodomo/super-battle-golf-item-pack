@@ -1,0 +1,12 @@
+# Kd values are sRGB
+newmtl Blue
+Kd 0.1300 0.3600 0.9500
+
+newmtl DarkBlue
+Kd 0.0700 0.2000 0.6200
+
+newmtl Cream
+Kd 0.9800 0.9500 0.8500
+
+newmtl White
+Kd 0.9800 0.9800 0.9800

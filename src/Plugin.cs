@@ -40,6 +40,7 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new PredatorItem());
         ItemCatalog.Add(new KamehamehaItem());
         ItemCatalog.Add(new DirtBlocksItem());
+        ItemCatalog.Add(new BlueShellItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)

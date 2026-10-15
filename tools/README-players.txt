@@ -17,6 +17,8 @@ New items for Super Battle Golf:
                   launches everyone it hits.
   Dirt Blocks   - Right click to place blocks (Minecraft style). Break them by
                   swinging your golf club through them or left clicking them.
+  Blue Shell    - Goes after whoever's ball is closest to the hole and blows
+                  them (and their lead) up.
 
 Steam Whistle music: put your own audio file named thomas_theme.ogg (or .mp3,
 .wav, .flac) in BepInEx\plugins\ItemPack\SteamWhistle\ to hear it during the

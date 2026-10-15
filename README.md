@@ -11,12 +11,13 @@ New items for Super Battle Golf. They show up in item boxes alongside the normal
 | **Predator Missile** | MW2's killstreak. Left click opens the laptop and launches: your view becomes the missile, coming down from high above. Steer with the mouse, left click or space boosts once. It explodes on whatever it hits with a big rocket blast; everyone else sees and hears it coming. Your golfer stands still while you fly. |
 | **Kamehameha** | Hold left click to charge (up to 3 s), release to fire a beam where you're aiming. Everyone in it gets knocked out and launched (harder the longer you charged); golf balls get blasted too. Walls and terrain stop it. 2 per pickup. |
 | **Dirt Blocks** | Minecraft building: a stack of 64. Right click places a block on the grid where you're looking (against the face of the block you're pointing at). Blocks are solid for players and balls. Swing your golf club through them, or left click them, to break them. |
+| **Blue Shell** | Mario Kart. Use it and it goes after whoever's ball is closest to the hole (even you, if you're in the lead). It flies high over the course with its siren wailing for everyone to hear, circles over the leader and slams down: a big blue explosion on them, and their ball gets knocked away from the hole. In the Driving Range (no hole) it picks another player, or you if you're alone. |
 
 **Steam Whistle theme:** no music ships with the pack. To hear one during the attack, put an audio file named `thomas_theme.ogg` (or `.mp3`, `.wav`, `.flac`) in `BepInEx\plugins\ItemPack\SteamWhistle\`. Each player hears their own file, and it's never committed to this repo.
 
 **Sniper Rifle sounds:** the pack synthesizes its own shot, zoom and reload sounds. To use others (for example ones from your own copy of Halo), put `sniper_fire`, `sniper_zoom_in`, `sniper_zoom_out` and/or `sniper_reload` (`.ogg`, `.wav`, `.mp3` or `.flac`) in `BepInEx\plugins\ItemPack\SniperRifle\`. Each player uses their own files; they're never committed or shipped.
 
-**Other replaceable sounds:** every new item synthesizes its own sounds, and each can be replaced the same way with a file in the item's folder: `predator_launch`, `predator_loop`, `predator_boost` (in `PredatorMissile\`), `kamehameha_charge` and `kamehameha_fire` (in `Kamehameha\`; a voice line works well for the charge), `dirt_place` and `dirt_break` (in `DirtBlocks\`). Audio files are git-ignored and never packaged.
+**Other replaceable sounds:** every new item synthesizes its own sounds, and each can be replaced the same way with a file in the item's folder: `predator_launch`, `predator_loop`, `predator_boost` (in `PredatorMissile\`), `kamehameha_charge` and `kamehameha_fire` (in `Kamehameha\`; a voice line works well for the charge), `dirt_place` and `dirt_break` (in `DirtBlocks\`), `blueshell_launch`, `blueshell_siren` and `blueshell_impact` (in `BlueShell\`). Audio files are git-ignored and never packaged.
 
 **Everyone in the lobby needs the same version of the pack**, including the host. Items sync through custom network messages that unmodded players don't understand.
 
@@ -81,6 +82,7 @@ Do **not** add pack items to the game's `ItemPool`: `MatchSetupRules` indexes it
 | `src/Items/Predator/` | Predator Missile: the pilot's client flies it (own camera drawn over the normal view, controls handed to the mouse) and streams its position; the host runs the rocket explosion on impact |
 | `src/Items/Kamehameha/` | Kamehameha: charge and beam effects for everyone, the shooter finds who's in the beam, hit players launch themselves, the host pushes balls |
 | `src/Items/DirtBlocks/` | Dirt Blocks: host-owned block grid, solid cube per block, placement against block faces, breaking from the local player's golf swing hitbox |
+| `src/Items/BlueShell/` | Blue Shell: the host picks the leader by ball-to-hole distance and times the flight; every client flies the shell on the shared timing; the host runs the explosions on impact |
 | `src/Framework/Synth.cs` | Small synthesizer the items use for their sound effects |
 | `src/Framework/ItemMenu.cs` | The F7 give menu and F6 quick give (host only, Driving Range or cheats on) |
 | `src/Framework/ItemAudio.cs` | Plays sounds through the game's FMOD buses, so its volume sliders apply |
