@@ -56,7 +56,3 @@ Settings
 After the first launch, BepInEx\config\eodomo.superbattlegolf.itempack.cfg holds
 the settings (item box chances, uses per pickup, slip strength, ...). Item box
 chances use the host's settings.
-
-For testing, the host can press F7 for a menu that gives any item, or F6 for the
-next pack item. Both only work in the Driving Range or when the match has
-cheats turned on.

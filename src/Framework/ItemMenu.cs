@@ -1,3 +1,5 @@
+#if DEVTOOLS
+// Testing tools: only compiled into builds made with -p:DevTools=true (never into releases).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -219,3 +221,4 @@ internal static class ItemMenu
         }
     }
 }
+#endif

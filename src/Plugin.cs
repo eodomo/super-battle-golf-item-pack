@@ -21,20 +21,25 @@ public class Plugin : BaseUnityPlugin
     /// <summary>The pack's always-running object, for coroutines (e.g. the updater).</summary>
     internal static MonoBehaviour Runner { get; private set; }
 
+#if DEVTOOLS
+    // Testing keys (F6 / F7 item menu): only in builds made with -p:DevTools=true, never in releases.
     internal static ConfigEntry<bool> DebugGiveEnabled;
     internal static ConfigEntry<Key> DebugGiveKey;
     internal static ConfigEntry<Key> MenuKey;
+#endif
 
     private void Awake()
     {
         Log = Logger;
         ModUpdater.CleanupAfterUpdate();
 
+#if DEVTOOLS
         DebugGiveEnabled = Config.Bind("Debug", "GiveKeyEnabled", true,
             "Lets the host give themselves items with the keys below. Only works in the Driving Range, " +
             "or in a match with the game's cheats (console commands) rule turned on.");
         DebugGiveKey = Config.Bind("Debug", "GiveKey", Key.F6, "Gives the host the next pack item (cycles through all of them).");
         MenuKey = Config.Bind("Debug", "MenuKey", Key.F7, "Opens a menu to give the host any pack item or game item.");
+#endif
 
         // ---- The pack's items. To add one, write a CustomItem subclass and list it here. ----
         ItemCatalog.Add(new BananaPeelItem());
@@ -108,7 +113,9 @@ internal class ItemPackRunner : MonoBehaviour
             }
         }
         Beams.Tick();
+#if DEVTOOLS
         ItemMenu.Update();
+#endif
     }
 
     private void OnGUI()
@@ -124,7 +131,9 @@ internal class ItemPackRunner : MonoBehaviour
                 Plugin.Log.LogError($"{item.DisplayName} GUI failed: {e}");
             }
         }
+#if DEVTOOLS
         ItemMenu.OnGUI();
+#endif
     }
 
     private void FixedUpdate()

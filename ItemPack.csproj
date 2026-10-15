@@ -18,6 +18,9 @@
     <PluginInstallDir>$(GameDir)\BepInEx\plugins\ItemPack</PluginInstallDir>
     <!-- tools/package.ps1 sets this to false to build without touching the game folder. -->
     <InstallToGame Condition="'$(InstallToGame)' == ''">true</InstallToGame>
+    <!-- -p:DevTools=true adds the testing keys (F6 give, F7 item menu). Off by default, and for releases. -->
+    <DevTools Condition="'$(DevTools)' == ''">false</DevTools>
+    <DefineConstants Condition="'$(DevTools)' == 'true'">$(DefineConstants);DEVTOOLS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

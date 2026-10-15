@@ -55,14 +55,14 @@ The zip includes [BepInEx 5](https://github.com/BepInEx/BepInEx) (the mod loader
 ## Settings
 `BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: item box chance, uses per pickup, held model size, and item-specific settings (e.g. slip strength). Item box chances use the host's settings.
 
-For testing, the host can press **F7** to open a menu that gives any pack item or game item, or **F6** to get the next pack item. Both only work in the Driving Range, or in a match with the game's cheats (console commands) rule turned on. Turn them off with `[Debug] GiveKeyEnabled`.
-
 ## Build
 Requires the .NET SDK (8 or 9) and the game with BepInEx installed (the build references the game's DLLs; none are committed).
 
 ```
 dotnet build ItemPack.csproj -c Release
 ```
+
+For testing, build with `-p:DevTools=true` to add two host-only keys: **F7** opens a menu that gives any pack item or game item, **F6** gives the next pack item (Driving Range, or a match with the cheats rule on). Releases are built without them.
 
 The build copies the plugin and assets into the game's `BepInEx\plugins\ItemPack`. Close the game first, because it locks the DLL. If the game is installed somewhere else, pass `-p:GameDir="D:\path\to\Super Battle Golf"`.
 
@@ -89,7 +89,7 @@ Do **not** add pack items to the game's `ItemPool`: `MatchSetupRules` indexes it
 ## How it works
 | Path | Role |
 |---|---|
-| `src/Plugin.cs` | Plugin entry point, the list of items, the per-frame runner, the F6 debug give |
+| `src/Plugin.cs` | Plugin entry point, the list of items, the per-frame runner, settings migration |
 | `src/Framework/CustomItem.cs` | Base class for items: config, assets, hooks |
 | `src/Framework/ItemCatalog.cs` | Registers items, held equipment and names into the game's tables; item box rolls |
 | `src/Framework/Patches.cs` | Harmony patches: item use, held model, drop (= discard), item boxes, network startup |
@@ -106,7 +106,7 @@ Do **not** add pack items to the game's `ItemPool`: `MatchSetupRules` indexes it
 | `src/Framework/Updater/` | "Check for updates" button in the game's Settings menu: GitHub latest-release check, download, install of the plugin folder (the loaded DLL is set aside as *.old and cleaned up on the next launch) |
 | `src/Items/BoogieBomb/` | Boogie Bomb: host relays throws, every client simulates the same bounce path and party; caught players make themselves dance (the game's own victory dance emote, controls locked so it can't be cancelled) |
 | `src/Framework/Synth.cs` | Small synthesizer the items use for their sound effects |
-| `src/Framework/ItemMenu.cs` | The F7 give menu and F6 quick give (host only, Driving Range or cheats on) |
+| `src/Framework/ItemMenu.cs` | Testing tools (only in `-p:DevTools=true` builds): F7 give menu and F6 quick give, host only, Driving Range or cheats on |
 | `src/Framework/ItemAudio.cs` | Plays sounds through the game's FMOD buses, so its volume sliders apply |
 | `Assets/<Item>/` | Per-item models and icon, installed to `BepInEx\plugins\ItemPack\<Item>\` |
 | `blender/` | Model scripts; run headless with `blender --background --factory-startup --python blender/<Item>/build_*.py` |
