@@ -178,7 +178,7 @@ internal static class Portals
                 uvs[i] = new Vector2(0.5f + 0.5f * Mathf.Cos(angle) * f, 0.5f + 0.5f * Mathf.Sin(angle) * f);
             }
         }
-        // Faces point along local -z, toward someone standing in front of the portal (+z).
+        // Winding is fixed up below so every face points out of the portal (+z), toward the viewer.
         for (int s = 0; s < SurfaceSegments; s++)
         {
             int next = (s + 1) % SurfaceSegments;
@@ -237,7 +237,7 @@ internal static class Portals
         return mesh;
     }
 
-    /// <summary>Makes every triangle face local -z (toward a viewer in front of the portal).</summary>
+    /// <summary>Makes every triangle face local +z, out of the portal toward a viewer in front of it (Unity: normal = cross(b - a, c - a) points at the viewer).</summary>
     private static void FixWinding(Mesh mesh)
     {
         Vector3[] v = mesh.vertices;
@@ -245,7 +245,7 @@ internal static class Portals
         for (int i = 0; i < t.Length; i += 3)
         {
             Vector3 normal = Vector3.Cross(v[t[i + 1]] - v[t[i]], v[t[i + 2]] - v[t[i]]);
-            if (normal.z > 0f)
+            if (normal.z < 0f)
             {
                 (t[i + 1], t[i + 2]) = (t[i + 2], t[i + 1]);
             }
