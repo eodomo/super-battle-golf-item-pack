@@ -17,7 +17,7 @@ internal static class ItemAudio
     private static readonly Dictionary<string, FMOD.ChannelGroup> busGroups = new();
 
     /// <summary>Makes an in-memory sound from mono float samples (-1..1).</summary>
-    public static FMOD.Sound CreateSound(float[] samples, int sampleRate)
+    public static FMOD.Sound CreateSound(float[] samples, int sampleRate, bool loop = false)
     {
         var bytes = new byte[samples.Length * sizeof(float)];
         Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
@@ -30,7 +30,7 @@ internal static class ItemAudio
         };
         info.cbsize = System.Runtime.InteropServices.Marshal.SizeOf(info);
         FMOD.RESULT result = RuntimeManager.CoreSystem.createSound(bytes,
-            FMOD.MODE.OPENMEMORY | FMOD.MODE.OPENRAW | FMOD.MODE.CREATESAMPLE | FMOD.MODE._2D | FMOD.MODE.LOOP_OFF,
+            FMOD.MODE.OPENMEMORY | FMOD.MODE.OPENRAW | FMOD.MODE.CREATESAMPLE | FMOD.MODE._2D | (loop ? FMOD.MODE.LOOP_NORMAL : FMOD.MODE.LOOP_OFF),
             ref info, out FMOD.Sound sound);
         if (result != FMOD.RESULT.OK)
         {
@@ -45,12 +45,12 @@ internal static class ItemAudio
     /// Loads "{baseName}.ogg/.wav/.mp3/.flac" from <paramref name="directory"/> if the player put one there
     /// (used for optional sound replacements that can't ship with the pack).
     /// </summary>
-    public static bool TryLoadOptional(string directory, string baseName, bool stream, out FMOD.Sound sound)
+    public static bool TryLoadOptional(string directory, string baseName, bool stream, out FMOD.Sound sound, bool loop = false)
     {
         foreach (string extension in AudioExtensions)
         {
             string path = System.IO.Path.Combine(directory, baseName + extension);
-            if (System.IO.File.Exists(path) && TryLoadFile(path, out sound, stream))
+            if (System.IO.File.Exists(path) && TryLoadFile(path, out sound, stream, loop))
             {
                 Plugin.Log.LogInfo($"Using sound file {path}");
                 return true;
@@ -64,9 +64,9 @@ internal static class ItemAudio
     /// Loads an audio file (ogg, mp3, wav, flac...) from disk. Streams (for music) play one instance at a
     /// time; samples (for effects) can overlap.
     /// </summary>
-    public static bool TryLoadFile(string path, out FMOD.Sound sound, bool stream = true)
+    public static bool TryLoadFile(string path, out FMOD.Sound sound, bool stream = true, bool loop = false)
     {
-        FMOD.MODE mode = (stream ? FMOD.MODE.CREATESTREAM : FMOD.MODE.CREATESAMPLE) | FMOD.MODE._2D | FMOD.MODE.LOOP_OFF;
+        FMOD.MODE mode = (stream ? FMOD.MODE.CREATESTREAM : FMOD.MODE.CREATESAMPLE) | FMOD.MODE._2D | (loop ? FMOD.MODE.LOOP_NORMAL : FMOD.MODE.LOOP_OFF);
         FMOD.RESULT result = RuntimeManager.CoreSystem.createSound(path, mode, out sound);
         if (result != FMOD.RESULT.OK)
         {
@@ -103,6 +103,28 @@ internal static class ItemAudio
         }
         float distance = Vector3.Distance(cam.transform.position, position);
         return volume * (1f - Mathf.Clamp01((distance - fullVolumeDistance) / (silentDistance - fullVolumeDistance)));
+    }
+
+    /// <summary>Playback speed and pitch (1 = normal).</summary>
+    public static void SetPitch(FMOD.Channel channel, float pitch)
+    {
+        if (channel.hasHandle())
+        {
+            channel.setPitch(pitch);
+        }
+    }
+
+    /// <summary>
+    /// An item sound: "{name}.ogg/.wav/.mp3/.flac" from the item's folder if the player added one, otherwise
+    /// synthesized by <paramref name="synthesize"/> (mono samples at <paramref name="sampleRate"/>).
+    /// </summary>
+    public static FMOD.Sound LoadOrSynthesize(CustomItem item, string name, System.Func<float[]> synthesize, bool loop = false, int sampleRate = 44100)
+    {
+        if (TryLoadOptional(item.AssetDir, name, stream: false, out FMOD.Sound sound, loop))
+        {
+            return sound;
+        }
+        return CreateSound(synthesize(), sampleRate, loop);
     }
 
     public static void SetVolume(FMOD.Channel channel, float volume)

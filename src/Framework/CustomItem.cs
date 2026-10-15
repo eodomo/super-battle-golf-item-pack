@@ -46,6 +46,12 @@ internal abstract class CustomItem
     /// <summary>True to keep the aim button from putting the player into aim mode (e.g. when it fires instead).</summary>
     public virtual bool SuppressAiming => false;
 
+    /// <summary>False if the item has no .obj (e.g. its held model is built in code); only the icon is loaded.</summary>
+    protected virtual bool HasMesh => true;
+
+    /// <summary>The model shown in the player's hand. Defaults to the item's .obj model.</summary>
+    public virtual GameObject CreateHeldModel(Transform parent, float scale) => Model.CreateModel(parent, scale);
+
     /// <summary>Folder holding the item's assets (plugins\ItemPack\{Key}).</summary>
     public string AssetDir { get; private set; }
 
@@ -78,7 +84,7 @@ internal abstract class CustomItem
         BindConfig();
 
         AssetDir = Path.Combine(pluginDir, Key);
-        Model = ModelAsset.Load(AssetDir, AssetName);
+        Model = ModelAsset.Load(AssetDir, AssetName, loadIcon: true, loadMesh: HasMesh);
         RegisterMessages();
     }
 

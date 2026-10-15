@@ -24,6 +24,16 @@ internal static class UnlitMaterials
         return mat;
     }
 
+    /// <summary>Opaque unlit material that takes each particle's own color (vertex color).</summary>
+    public static Material Particles()
+    {
+        Shader shader = FindFirst(new[] { "Universal Render Pipeline/Particles/Unlit", "Sprites/Default" });
+        var mat = new Material(shader) { hideFlags = HideFlags.DontUnloadUnusedAsset };
+        SetTexture(mat, Texture2D.whiteTexture);
+        SetColor(mat, Color.white);
+        return mat;
+    }
+
     /// <summary>Additive (glowing) unlit material; colors add light on top of what's behind.</summary>
     public static Material Additive(Texture texture, Color color)
     {

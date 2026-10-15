@@ -37,6 +37,9 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new PortalGunItem());
         ItemCatalog.Add(new SteamWhistleItem());
         ItemCatalog.Add(new SniperRifleItem());
+        ItemCatalog.Add(new PredatorItem());
+        ItemCatalog.Add(new KamehamehaItem());
+        ItemCatalog.Add(new DirtBlocksItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)

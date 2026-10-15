@@ -133,7 +133,7 @@ internal static class ItemCatalog
             prefab.Type = item.Equipment;
             prefab.HasCosmetics = false;
 
-            GameObject model = item.Model.CreateModel(root.transform, item.HeldScale.Value);
+            GameObject model = item.CreateHeldModel(root.transform, item.HeldScale.Value);
             Vector3 basePosition = templateRenderer != null
                 ? template.Prefab.transform.InverseTransformPoint(templateRenderer.transform.position)
                 : Vector3.zero;

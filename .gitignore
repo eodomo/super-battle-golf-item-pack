@@ -21,3 +21,9 @@ sniper_fire.*
 sniper_zoom_in.*
 sniper_zoom_out.*
 sniper_reload.*
+
+# Any audio a player drops into an item folder is theirs (and possibly copyrighted): never commit it.
+*.ogg
+*.wav
+*.mp3
+*.flac

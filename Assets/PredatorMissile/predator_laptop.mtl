@@ -1,0 +1,12 @@
+# Kd values are sRGB
+newmtl Case
+Kd 0.2400 0.2600 0.2200
+
+newmtl Dark
+Kd 0.0800 0.0800 0.0900
+
+newmtl Screen
+Kd 0.3500 0.5500 0.4200
+
+newmtl Accent
+Kd 0.7500 0.6200 0.2000

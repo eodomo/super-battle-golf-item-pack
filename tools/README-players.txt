@@ -11,6 +11,12 @@ New items for Super Battle Golf:
                   on fire.
   Sniper Rifle  - Halo style. Hold aim to scope in (scroll for 10x), use to
                   fire. One shot knocks someone out from across the map.
+  Predator      - Click to launch, then steer the missile with the mouse; click
+                  again to boost. Big explosion.
+  Kamehameha    - Hold left click to charge, release to fire a beam that
+                  launches everyone it hits.
+  Dirt Blocks   - Right click to place blocks (Minecraft style). Break them by
+                  swinging your golf club through them or left clicking them.
 
 Steam Whistle music: put your own audio file named thomas_theme.ogg (or .mp3,
 .wav, .flac) in BepInEx\plugins\ItemPack\SteamWhistle\ to hear it during the

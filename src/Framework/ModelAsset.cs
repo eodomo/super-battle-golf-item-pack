@@ -28,19 +28,22 @@ internal class ModelAsset
 
     public bool HasMaterials => materials != null;
 
-    public static ModelAsset Load(string directory, string name, bool loadIcon = true)
+    public static ModelAsset Load(string directory, string name, bool loadIcon = true, bool loadMesh = true)
     {
         var asset = new ModelAsset { Name = name };
-        try
+        if (loadMesh)
         {
-            asset.Mesh = ObjLoader.Load(Path.Combine(directory, $"{name}.obj"), Path.Combine(directory, $"{name}.mtl"), out asset.submeshColors);
-            asset.Mesh.name = $"{name}_mesh";
-            asset.Mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
-            Plugin.Log.LogInfo($"Loaded {name} mesh: {asset.Mesh.vertexCount} verts, {asset.Mesh.subMeshCount} submeshes, bounds {asset.Mesh.bounds.size}");
-        }
-        catch (Exception e)
-        {
-            Plugin.Log.LogError($"Failed to load {name} mesh from {directory}: {e}");
+            try
+            {
+                asset.Mesh = ObjLoader.Load(Path.Combine(directory, $"{name}.obj"), Path.Combine(directory, $"{name}.mtl"), out asset.submeshColors);
+                asset.Mesh.name = $"{name}_mesh";
+                asset.Mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                Plugin.Log.LogInfo($"Loaded {name} mesh: {asset.Mesh.vertexCount} verts, {asset.Mesh.subMeshCount} submeshes, bounds {asset.Mesh.bounds.size}");
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError($"Failed to load {name} mesh from {directory}: {e}");
+            }
         }
 
         if (!loadIcon)
