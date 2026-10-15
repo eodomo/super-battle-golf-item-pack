@@ -13,8 +13,8 @@ internal enum WhistleTargetMode
 
 /// <summary>
 /// Steam Whistle: blow it and a winged blue tank engine answers the call, swoops in and sets a player on
-/// fire. (A tribute to a certain famous Skyrim mod.) Put a "thomas_theme" .ogg/.mp3/.wav file in the item's
-/// folder to have it play during the attack; none ships with the pack.
+/// fire, to its own epic theme (a tribute to a certain famous Skyrim mod). A "thomas_theme" .ogg/.mp3/.wav file in the item's
+/// folder plays instead of the built-in theme.
 /// </summary>
 internal class SteamWhistleItem : CustomItem
 {
@@ -51,8 +51,8 @@ internal class SteamWhistleItem : CustomItem
         LaunchUp = Bind("LaunchUp", 10f, "Upward launch speed of the fire blast.");
         LaunchHorizontal = Bind("LaunchHorizontal", 7f, "Sideways launch speed of the fire blast.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the whistle and fire (0-1). Local setting.");
-        MusicVolume = Bind("MusicVolume", 0.8f, "Volume of the theme (0-1), if you added a thomas_theme file. Local setting.");
-        MusicSeconds = Bind("MusicSeconds", 14f, "How long the theme plays before fading out.");
+        MusicVolume = Bind("MusicVolume", 0.8f, "Volume of the theme music (0-1). Local setting.");
+        MusicSeconds = Bind("MusicSeconds", 14f, "How long a thomas_theme file plays before fading out (the built-in theme always plays in full).");
     }
 
     public override void ConfigureItemData(ItemData data)
@@ -80,6 +80,7 @@ internal class SteamWhistleItem : CustomItem
     {
         WhistleNet.InitSerializers();
         DragonAttacks.LoadModels(AssetDir);
+        DragonAttacks.PrepareBuiltInTheme();
     }
 
     public override void OnStartServer() => WhistleNet.RegisterServerHandlers();

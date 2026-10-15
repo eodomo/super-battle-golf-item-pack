@@ -290,6 +290,11 @@ internal static class DragonAttacks
 
     private static readonly string[] ThemeFiles = { "thomas_theme.ogg", "thomas_theme.mp3", "thomas_theme.wav", "thomas_theme.flac" };
     private static bool themeLoaded;
+    private static System.Threading.Tasks.Task<float[]> builtInTheme;
+    private static float builtInSeconds;
+
+    /// <summary>Starts synthesizing the built-in anthem off the main thread (a few seconds of number crunching).</summary>
+    public static void PrepareBuiltInTheme() => builtInTheme ??= System.Threading.Tasks.Task.Run(ThemeSynth.Synthesize);
 
     private static void StartTheme()
     {
@@ -306,9 +311,16 @@ internal static class DragonAttacks
                 }
             }
         }
+        if (!theme.hasHandle() && builtInTheme != null && builtInTheme.Status == System.Threading.Tasks.TaskStatus.RanToCompletion)
+        {
+            // No theme file: use the pack's own anthem (synthesized in the background at startup).
+            theme = ItemAudio.CreateSound(builtInTheme.Result, 44100);
+            builtInSeconds = builtInTheme.Result.Length / 44100f;
+            Plugin.Log.LogInfo("Steam Whistle theme: built-in anthem");
+        }
         if (!theme.hasHandle() || themeStartedAt >= 0f)
         {
-            return; // no theme file, or already playing for an earlier attack
+            return; // not ready yet, or already playing for an earlier attack
         }
         themeChannel = ItemAudio.Play(theme, ItemAudio.MusicBus, SteamWhistleItem.MusicVolume.Value);
         themeStartedAt = Time.time;
@@ -321,7 +333,8 @@ internal static class DragonAttacks
             return;
         }
         const float fade = 2f;
-        float playFor = SteamWhistleItem.MusicSeconds.Value;
+        // The built-in anthem plays to its end (it has its own ending); a player's file is cut after MusicSeconds.
+        float playFor = builtInSeconds > 0f ? builtInSeconds : SteamWhistleItem.MusicSeconds.Value;
         float age = Time.time - themeStartedAt;
         if (age >= playFor + fade)
         {
