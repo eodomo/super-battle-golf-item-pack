@@ -82,8 +82,8 @@ internal static class AimingReticlePatch
 [HarmonyPatch(typeof(ItemSpawnerSettings), nameof(ItemSpawnerSettings.GetRandomItemFor))]
 internal static class ItemBoxPatch
 {
-    // Runs on the host when an item box is opened.
-    private static void Postfix(ref ItemType __result) => __result = ItemCatalog.RollItemBox(__result);
+    // Runs on the host when an item box is opened. Pack items are in the pools themselves (see ItemBoxes).
+    private static void Postfix(ref ItemType __result) => __result = ItemBoxes.OnRolled(__result);
 }
 
 [HarmonyPatch(typeof(BNetworkManager))]

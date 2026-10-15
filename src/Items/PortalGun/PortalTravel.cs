@@ -5,145 +5,377 @@ using UnityEngine;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Moves things through portals, keeping their momentum: position, rotation, velocity and spin are all
-/// carried from the entry portal's frame to the exit portal's frame.
+/// Moves things through portals the way Portal does: you can stand halfway in one, and you only come out of the
+/// other one when your middle crosses the surface. Position, rotation, velocity and spin are carried from the entry
+/// portal's frame to the exit portal's frame, so momentum is kept.
 ///
-/// Runs every physics step, before the simulation, and catches anything that would reach a portal's
-/// surface during the coming step. Walls behind portals stay solid, so things must be teleported before
-/// they touch them.
+/// How: while something is in a portal's opening (touching the surface, its center inside the rim), collisions
+/// between it and the wall behind the portal are switched off (Physics.IgnoreCollision, which the game's own
+/// ground checks also honor), so it can move into the wall. When its center passes the surface it's moved to the
+/// same spot relative to the exit, where the exit's wall is switched off for it until it's fully out. Wall portals
+/// near the ground get an invisible floor ("sill") inside the wall, in case the wall and the floor are one collider
+/// (terrain), so people walking in don't drop through the ground. <see cref="PortalClones"/> draws whatever is
+/// sticking out of the other side.
 ///
-/// Who moves what: each client moves its own player (players own their movement). The host moves
-/// everything else (balls, carts, thrown items) and clients copy that locally too, so their predicted
-/// physics doesn't bounce off the wall before the host's correction arrives.
+/// Who moves what: each client moves its own player (players own their movement). The host moves everything else
+/// (balls, carts, thrown items) and clients copy that locally too, so their predicted physics agrees.
 /// </summary>
 internal static class PortalTravel
 {
-    private const float Cooldown = 0.12f;
-    private const float ExitClearance = 0.06f;
-    private const float TriggerSlack = 0.06f;
-    private const float ScanDepth = 4f;
+    private const float TouchSlack = 0.08f;   // a surface this close counts as touching the portal
+    private const float EdgeSlack = 1.15f;    // things already going through can drift a little past the rim
+    private const float ScanBehind = 2.5f;
+    private const float ScanFront = 4f;
+    private const float ExitDepth = 0.01f;    // how far past the exit's surface a teleported center ends up
+    private const float SillReach = 1.2f;     // wall portals whose bottom is this close to the floor get a sill
+
+    private sealed class Passage
+    {
+        public Rigidbody Body;
+        public Entity Entity;
+        public Portal Portal;
+        public int Step;
+        public readonly List<(Collider own, Collider wall)> Ignored = new();
+    }
 
     private static readonly Collider[] overlap = new Collider[64];
+    private static readonly List<Collider> ownColliders = new();
     private static readonly HashSet<Rigidbody> seen = new();
-    private static readonly Dictionary<Rigidbody, float> recent = new();
-    private static readonly List<Rigidbody> expired = new();
+    private static readonly Dictionary<Rigidbody, Passage> passages = new();
+    private static readonly List<Passage> scratch = new();
+    private static readonly HashSet<Collider> sills = new();
     private static int travellerMask = -1;
+    private static int step;
 
-    /// <summary>Called when portals move, so nothing stays locked out of a freshly placed portal.</summary>
-    public static void ForgetRecent() => recent.Clear();
+    // ---- portal lifetime ----
+
+    /// <summary>A portal was placed or moved: find the wall it sits on.</summary>
+    public static void OnPortalPlaced(Portal portal)
+    {
+        EndPassagesAt(portal);
+        DestroySill(portal);
+        portal.WallColliders.Clear();
+        if (GameManager.LayerSettings == null)
+        {
+            return;
+        }
+        Transform t = portal.Transform;
+        Vector3 n = t.forward;
+        var halfExtents = new Vector3(portal.HalfWidth + 0.05f, portal.HalfHeight + 0.05f, 0.32f);
+        int count = Physics.OverlapBoxNonAlloc(t.position - n * 0.3f, halfExtents, overlap, t.rotation, ~GetTravellerMask(), QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+        {
+            Collider c = overlap[i];
+            if (c.isTrigger || sills.Contains(c) || (c.attachedRigidbody != null && !c.attachedRigidbody.isKinematic))
+            {
+                continue;
+            }
+            portal.WallColliders.Add(c);
+        }
+        if (Mathf.Abs(n.y) < 0.6f)
+        {
+            BuildSill(portal);
+        }
+    }
+
+    public static void OnPortalRemoved(Portal portal)
+    {
+        EndPassagesAt(portal);
+        DestroySill(portal);
+        portal.WallColliders.Clear();
+    }
+
+    private static void BuildSill(Portal portal)
+    {
+        Transform t = portal.Transform;
+        Vector3 flatNormal = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
+        Vector3 bottom = t.position - t.up * portal.HalfHeight;
+        Vector3 probe = bottom + flatNormal * 0.4f + Vector3.up * 0.6f;
+        if (!Physics.Raycast(probe, Vector3.down, out RaycastHit floor, SillReach + 0.6f, GameManager.LayerSettings.PlayerGroundableMask, QueryTriggerInteraction.Ignore)
+            || !portal.WallColliders.Contains(floor.collider))
+        {
+            return; // the floor isn't part of the wall, so it stays solid by itself
+        }
+        var go = new GameObject($"{t.name}_Sill") { layer = floor.collider.gameObject.layer };
+        go.transform.SetPositionAndRotation(new Vector3(bottom.x, floor.point.y, bottom.z), Quaternion.LookRotation(flatNormal, Vector3.up));
+        var box = go.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, -0.25f, -0.6f);              // reaches 2 m into the wall and 0.8 m out of it
+        box.size = new Vector3(portal.HalfWidth * 2f + 0.3f, 0.5f, 2.8f);
+        box.enabled = false;                                       // only while something is going through
+        if (floor.collider.sharedMaterial != null)
+        {
+            box.sharedMaterial = floor.collider.sharedMaterial;
+        }
+        portal.Sill = box;
+        sills.Add(box);
+    }
+
+    private static void DestroySill(Portal portal)
+    {
+        if (portal.Sill != null)
+        {
+            sills.Remove(portal.Sill);
+            Object.Destroy(portal.Sill.gameObject);
+        }
+        portal.Sill = null;
+    }
+
+    // ---- every physics step ----
 
     public static void FixedTick()
     {
         if (Portals.All.Count == 0 || GameManager.LayerSettings == null)
         {
+            if (passages.Count > 0)
+            {
+                EndAll();
+            }
             return;
         }
-        PruneRecent();
+        step++;
         seen.Clear();
+
+        // Things already going through stay with their portal.
+        scratch.Clear();
+        scratch.AddRange(passages.Values);
+        foreach (Passage passage in scratch)
+        {
+            if (passage.Body == null || passage.Entity == null || passage.Portal.Transform == null)
+            {
+                End(passage);
+                continue;
+            }
+            seen.Add(passage.Body);
+            Evaluate(passage.Portal, passage.Body, passage.Entity, passage);
+        }
+
         int mask = GetTravellerMask();
         foreach (Portal portal in Portals.All)
         {
-            if (portal.Transform == null || !portal.IsLinked || portal.Transform.localScale.x < 0.99f)
+            if (!IsOpen(portal) || !IsOpen(portal.Partner))
             {
                 continue;
             }
             Transform t = portal.Transform;
-            Vector3 center = t.position + t.forward * (ScanDepth * 0.5f - 0.5f);
-            var halfExtents = new Vector3(portal.HalfWidth + 1f, portal.HalfHeight + 1f, ScanDepth * 0.5f + 0.5f);
+            Vector3 center = t.position + t.forward * ((ScanFront - ScanBehind) * 0.5f);
+            var halfExtents = new Vector3(portal.HalfWidth + 1f, portal.HalfHeight + 1f, (ScanFront + ScanBehind) * 0.5f);
             int count = Physics.OverlapBoxNonAlloc(center, halfExtents, overlap, t.rotation, mask, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < count; i++)
             {
                 Rigidbody body = overlap[i].attachedRigidbody;
-                if (body == null || body.isKinematic || !seen.Add(body) || recent.ContainsKey(body))
+                if (body == null || body.isKinematic || !seen.Add(body)
+                    || !body.TryGetComponentInParent(out Entity entity, includeInactive: false))
                 {
                     continue;
                 }
-                if (!body.TryGetComponentInParent(out Entity entity, includeInactive: false))
+                if (entity.IsPlayer && entity.PlayerInfo.ActiveGolfCartSeat.IsValid())
                 {
-                    continue;
+                    continue; // seated players ride their cart through
                 }
-                TryTravel(portal, entity, body);
+                Evaluate(portal, body, entity, null);
+            }
+        }
+
+        // Anything that stopped touching its portal gets its collisions back.
+        scratch.Clear();
+        scratch.AddRange(passages.Values);
+        foreach (Passage passage in scratch)
+        {
+            if (passage.Step != step)
+            {
+                End(passage);
+            }
+        }
+        foreach (Portal portal in Portals.All)
+        {
+            if (portal.Sill != null)
+            {
+                portal.Sill.enabled = HasPassage(portal);
             }
         }
     }
 
-    private static void TryTravel(Portal portal, Entity entity, Rigidbody body)
+    private static void Evaluate(Portal portal, Rigidbody body, Entity entity, Passage passage)
     {
-        bool isPlayer = entity.IsPlayer;
-        if (isPlayer)
+        if (!IsOpen(portal) || !IsOpen(portal.Partner))
         {
-            PlayerInfo player = entity.PlayerInfo;
-            if (!player.isLocalPlayer || player.ActiveGolfCartSeat.IsValid() || !player.Movement.IsVisible)
-            {
-                return; // remote players move themselves; seated players ride their cart through
-            }
+            return; // not confirmed this step: ends below
         }
-        else if (!NetworkServer.active && !entity.IsSimulatingRigidbody())
-        {
-            return;
-        }
-
         Transform t = portal.Transform;
         Vector3 n = t.forward;
         Bounds bounds = GetBounds(body);
         Vector3 center = bounds.center;
         float extent = SupportExtent(bounds.extents, n);
         Vector3 velocity = body.linearVelocity;
-        float distance = Vector3.Dot(center - t.position, n) - extent; // gap between the object and the surface
-        float approach = -Vector3.Dot(velocity, n);                     // speed toward the surface
-        float step = Time.fixedDeltaTime;
+        float depth = Vector3.Dot(center - t.position, n); // center's distance in front of the surface (negative: behind)
+        float approach = -Vector3.Dot(velocity, n);
 
-        if (distance < -extent * 2f - 0.3f)
+        // Is the center inside the rim (or, for something fast, will it be where it crosses the surface)?
+        Quaternion toLocal = Quaternion.Inverse(t.rotation);
+        Vector3 local = toLocal * (center - t.position);
+        bool inside = InsideRim(portal, local, passage != null ? EdgeSlack : 1f);
+        if (!inside && passage == null && approach > 0.05f && depth > 0f)
         {
-            return; // already well behind the surface (e.g. inside the wall below a floor portal)
+            float time = depth / approach;
+            inside = time < Time.fixedDeltaTime * 2f && InsideRim(portal, local + toLocal * velocity * time, 1f);
         }
-        bool isFloor = n.y > 0.6f;
-        bool reachesThisStep = distance <= Mathf.Max(TriggerSlack, approach * step * 1.5f) && approach > 0.05f;
-        bool restingOnFloorPortal = isFloor && distance <= TriggerSlack;
-        bool pushingIntoWall = isPlayer && !isFloor && distance <= TriggerSlack && Vector3.Dot(entity.transform.forward, n) < -0.3f
-            && entity.PlayerInfo.Movement.rawMoveVector2d.sqrMagnitude > 0.1f;
-        if (!reachesThisStep && !restingOnFloorPortal && !pushingIntoWall)
+        float gap = depth - extent; // between the surface and the nearest point of the object
+        bool touching = inside && gap <= Mathf.Max(TouchSlack, approach * Time.fixedDeltaTime * 1.5f) && depth > -extent - 0.6f;
+        if (!touching)
         {
             return;
         }
 
-        // Where the object's center crosses the surface plane, in the portal's 2D space.
-        float timeToSurface = approach > 0.05f ? Mathf.Max(0f, distance) / approach : 0f;
-        Vector3 crossing = t.InverseTransformPoint(center + velocity * timeToSurface);
-        float ex = crossing.x / portal.HalfWidth;
-        float ey = crossing.y / portal.HalfHeight;
-        if (ex * ex + ey * ey > 1f)
+        passage ??= Begin(portal, body, entity);
+        passage.Step = step;
+        IgnoreWall(passage);
+        if (depth < 0f && Controls(entity))
         {
-            return;
+            Teleport(passage, center, depth, local);
         }
-        Teleport(portal, entity, body, center, bounds, crossing, isPlayer);
     }
 
-    private static void Teleport(Portal portal, Entity entity, Rigidbody body, Vector3 center, Bounds bounds, Vector3 crossingLocal, bool isPlayer)
+    private static Passage Begin(Portal portal, Rigidbody body, Entity entity)
     {
-        Portal exit = portal.Partner;
-        Quaternion travel = portal.TravelRotation;
-        Vector3 exitNormal = exit.Transform.forward;
+        var passage = new Passage { Body = body, Entity = entity, Portal = portal };
+        passages[body] = passage;
+        return passage;
+    }
 
-        // Keep the side-to-side offset (pulled in a bit so we don't come out half inside the exit's wall).
-        var lateral = new Vector3(crossingLocal.x * 0.7f, crossingLocal.y * 0.7f, 0f);
-        Vector3 exitPointOnSurface = exit.Transform.TransformPoint(Portals.Flip * lateral);
-
-        Vector3 velocity = travel * body.linearVelocity;
-        Vector3 angularVelocity = travel * body.angularVelocity;
-        Vector3 pivotOffset = body.position - center;
-
-        if (isPlayer)
+    /// <summary>Switches off collisions between everything of the traveller and the portal's wall (and keeps it so as colliders change).</summary>
+    private static void IgnoreWall(Passage passage)
+    {
+        ownColliders.Clear();
+        passage.Body.GetComponentsInChildren(false, ownColliders);
+        foreach (Collider own in ownColliders)
         {
-            TeleportPlayer(entity.PlayerInfo, body, exit, exitPointOnSurface, exitNormal, bounds, pivotOffset, travel, velocity);
+            if (own.isTrigger || !own.enabled)
+            {
+                continue;
+            }
+            foreach (Collider wall in passage.Portal.WallColliders)
+            {
+                if (wall != null && !Physics.GetIgnoreCollision(own, wall))
+                {
+                    Physics.IgnoreCollision(own, wall, true);
+                    passage.Ignored.Add((own, wall));
+                }
+            }
+        }
+    }
+
+    private static void RestoreWall(Passage passage, List<Collider> keepIgnoring = null)
+    {
+        for (int i = passage.Ignored.Count - 1; i >= 0; i--)
+        {
+            (Collider own, Collider wall) = passage.Ignored[i];
+            if (keepIgnoring != null && keepIgnoring.Contains(wall))
+            {
+                continue;
+            }
+            if (own != null && wall != null)
+            {
+                Physics.IgnoreCollision(own, wall, false);
+            }
+            passage.Ignored.RemoveAt(i);
+        }
+    }
+
+    private static void End(Passage passage)
+    {
+        RestoreWall(passage);
+        if (passage.Body != null)
+        {
+            passages.Remove(passage.Body);
         }
         else
         {
-            float exitExtent = bounds.extents.magnitude; // rotation changes, so use the bounding sphere
-            Vector3 exitCenter = exitPointOnSurface + exitNormal * (exitExtent + ExitClearance);
+            // Destroyed body: find it by value.
+            Rigidbody key = null;
+            foreach (KeyValuePair<Rigidbody, Passage> entry in passages)
+            {
+                if (entry.Value == passage)
+                {
+                    key = entry.Key;
+                }
+            }
+            passages.Remove(key);
+        }
+    }
+
+    private static void EndPassagesAt(Portal portal)
+    {
+        scratch.Clear();
+        scratch.AddRange(passages.Values);
+        foreach (Passage passage in scratch)
+        {
+            if (passage.Portal == portal)
+            {
+                End(passage);
+            }
+        }
+    }
+
+    private static void EndAll()
+    {
+        scratch.Clear();
+        scratch.AddRange(passages.Values);
+        foreach (Passage passage in scratch)
+        {
+            End(passage);
+        }
+        passages.Clear();
+    }
+
+    private static bool HasPassage(Portal portal)
+    {
+        foreach (Passage passage in passages.Values)
+        {
+            if (passage.Portal == portal)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Whether this client moves <paramref name="entity"/> (see the class summary).</summary>
+    private static bool Controls(Entity entity)
+    {
+        if (entity.IsPlayer)
+        {
+            PlayerInfo player = entity.PlayerInfo;
+            return player.isLocalPlayer && !player.ActiveGolfCartSeat.IsValid() && player.Movement.IsVisible;
+        }
+        return NetworkServer.active || entity.IsSimulatingRigidbody();
+    }
+
+    // ---- crossing over ----
+
+    private static void Teleport(Passage passage, Vector3 center, float depth, Vector3 centerLocal)
+    {
+        Portal portal = passage.Portal;
+        Portal exit = portal.Partner;
+        Rigidbody body = passage.Body;
+        Entity entity = passage.Entity;
+        Quaternion travel = portal.TravelRotation;
+
+        // The same spot relative to the exit: just past its surface, by however far it was past the entry's.
+        Vector3 exitLocal = Portals.Flip * centerLocal;
+        exitLocal.z = Mathf.Max(-depth, ExitDepth);
+        Vector3 exitCenter = exit.Transform.position + exit.Transform.rotation * exitLocal;
+        Vector3 velocity = travel * body.linearVelocity;
+        Vector3 pivotOffset = body.position - center;
+
+        if (entity.IsPlayer)
+        {
+            TeleportPlayer(entity.PlayerInfo, body, exit, exitCenter, pivotOffset, travel, velocity);
+        }
+        else
+        {
+            Vector3 angularVelocity = travel * body.angularVelocity;
             Quaternion rotation = travel * body.rotation;
             Vector3 position = exitCenter + travel * pivotOffset;
-
             entity.InformWillTeleport();
             body.position = position;
             body.rotation = rotation;
@@ -153,13 +385,21 @@ internal static class PortalTravel
             entity.InformTeleported();
             RotateLocalCameraIfRiding(entity, travel);
         }
-        recent[body] = Time.time;
+
+        // Now going through the exit: its wall is off for this traveller, the entry's is back on.
+        RestoreWall(passage, exit.WallColliders);
+        passage.Portal = exit;
+        IgnoreWall(passage);
+        if (exit.Sill != null)
+        {
+            exit.Sill.enabled = true;
+        }
     }
 
-    private static void TeleportPlayer(PlayerInfo player, Rigidbody body, Portal exit, Vector3 exitPointOnSurface, Vector3 exitNormal,
-        Bounds bounds, Vector3 pivotOffset, Quaternion travel, Vector3 velocity)
+    private static void TeleportPlayer(PlayerInfo player, Rigidbody body, Portal exit, Vector3 exitCenter, Vector3 pivotOffset, Quaternion travel, Vector3 velocity)
     {
         // Players stay upright; turn them to face the way they're now moving (or out of the exit).
+        Vector3 exitNormal = exit.Transform.forward;
         Vector3 facing = travel * player.transform.forward;
         facing.y = 0f;
         if (facing.sqrMagnitude < 0.01f)
@@ -171,14 +411,11 @@ internal static class PortalTravel
             }
         }
         Quaternion rotation = Quaternion.LookRotation(facing.normalized, Vector3.up);
-
-        float exitExtent = SupportExtent(bounds.extents, exitNormal);
-        Vector3 exitCenter = exitPointOnSurface + exitNormal * (exitExtent + ExitClearance);
         Vector3 feet = exitCenter + pivotOffset; // upright before and after, so the offset is unchanged
 
         // Coming out of a wall portal low down: don't end up with our feet in the floor.
         if (Mathf.Abs(exitNormal.y) < 0.6f
-            && Physics.Raycast(exitCenter, Vector3.down, out RaycastHit ground, bounds.extents.y + 0.5f,
+            && Physics.Raycast(exitCenter, Vector3.down, out RaycastHit ground, -pivotOffset.y + 0.5f,
                 GameManager.LayerSettings.PlayerGroundableMask, QueryTriggerInteraction.Ignore)
             && ground.point.y > feet.y)
         {
@@ -213,11 +450,26 @@ internal static class PortalTravel
         }
     }
 
-    private static Bounds GetBounds(Rigidbody body)
+    // ---- helpers ----
+
+    /// <summary>Fully opened (the open animation has finished) and linked.</summary>
+    public static bool IsOpen(Portal portal) =>
+        portal != null && portal.Transform != null && portal.IsLinked && portal.Transform.localScale.x >= 0.99f;
+
+    public static bool InsideRim(Portal portal, Vector3 local, float slack)
+    {
+        float ex = local.x / (portal.HalfWidth * slack);
+        float ey = local.y / (portal.HalfHeight * slack);
+        return ex * ex + ey * ey <= 1f;
+    }
+
+    public static Bounds GetBounds(Rigidbody body)
     {
         bool any = false;
         var bounds = new Bounds(body.worldCenterOfMass, Vector3.zero);
-        foreach (Collider collider in body.GetComponentsInChildren<Collider>())
+        ownColliders.Clear();
+        body.GetComponentsInChildren(false, ownColliders);
+        foreach (Collider collider in ownColliders)
         {
             if (!collider.enabled || collider.isTrigger || collider.attachedRigidbody != body)
             {
@@ -237,27 +489,10 @@ internal static class PortalTravel
     }
 
     /// <summary>Half-size of an axis-aligned box along a direction.</summary>
-    private static float SupportExtent(Vector3 extents, Vector3 direction) =>
+    public static float SupportExtent(Vector3 extents, Vector3 direction) =>
         Mathf.Abs(direction.x) * extents.x + Mathf.Abs(direction.y) * extents.y + Mathf.Abs(direction.z) * extents.z;
 
-    private static void PruneRecent()
-    {
-        float now = Time.time;
-        foreach (KeyValuePair<Rigidbody, float> entry in recent)
-        {
-            if (entry.Key == null || now - entry.Value > Cooldown)
-            {
-                expired.Add(entry.Key);
-            }
-        }
-        foreach (Rigidbody body in expired)
-        {
-            recent.Remove(body);
-        }
-        expired.Clear();
-    }
-
-    private static int GetTravellerMask()
+    public static int GetTravellerMask()
     {
         if (travellerMask == -1)
         {

@@ -22,6 +22,9 @@ internal abstract class CustomItem
 
     public abstract string DisplayName { get; }
 
+    /// <summary>Name in the testing menu, where variants sharing a display name need telling apart.</summary>
+    public virtual string MenuName => DisplayName;
+
     /// <summary>Vanilla item whose ItemData is cloned (hold/use animations, use rules, HUD behavior).</summary>
     public abstract ItemType TemplateItem { get; }
 
@@ -62,8 +65,24 @@ internal abstract class CustomItem
     public EquipmentType Equipment => (EquipmentType)Id;
     public ModelAsset Model { get; private set; }
 
-    public ConfigEntry<float> ItemBoxChance { get; private set; }
+    /// <summary>How often item boxes give this item, relative to its rarity's default (1 = default, 0 = never).</summary>
+    public ConfigEntry<float> ItemBoxFrequency { get; private set; }
     public ConfigEntry<int> UsesPerPickup { get; private set; }
+
+    /// <summary>
+    /// The item's default item box odds. Powerful items are as rare as the game's best ones (orbital laser,
+    /// thunderstorm) and, like those, only show up for players who are behind. See <see cref="ItemBoxes"/>.
+    /// </summary>
+    public virtual ItemRarity Rarity => ItemRarity.Powerful;
+
+    /// <summary>
+    /// Whether the item has its own entry in the item box pools (and the setup menu's sliders). Items that come in
+    /// variants list one of them, which picks the variant in <see cref="RollFromItemBox"/>.
+    /// </summary>
+    public virtual bool ListedInItemBoxes => true;
+
+    /// <summary>What an item box gives when it lands on this item's entry.</summary>
+    public virtual ItemType RollFromItemBox() => Type;
 
     /// <summary>Most uses one pickup can hold, whatever the config says (e.g. 64 for a stack of dirt).</summary>
     protected virtual int MaxUsesPerPickup => 999;
@@ -76,7 +95,6 @@ internal abstract class CustomItem
 
     private ConfigFile config;
 
-    protected virtual float DefaultItemBoxChance => 0.1f;
     protected virtual int DefaultUses => 1;
     protected virtual float DefaultHeldScale => 1f;
     protected virtual Vector3 DefaultHeldRotation => Vector3.zero;
@@ -84,8 +102,8 @@ internal abstract class CustomItem
     public void Init(ConfigFile configFile, string pluginDir)
     {
         config = configFile;
-        ItemBoxChance = Bind("ItemBoxChance", DefaultItemBoxChance,
-            $"Chance (0-1) that an item box gives a {DisplayName} instead of its normal item. Host setting.");
+        ItemBoxFrequency = Bind("ItemBoxFrequency", 1f,
+            $"How often item boxes give a {DisplayName}: 1 = normal, 2 = twice as often, 0.5 = half as often, 0 = never. Host setting.");
         UsesPerPickup = Bind("UsesPerPickup", DefaultUses, "Uses per pickup.");
         HeldScale = Bind("HeldScale", DefaultHeldScale, "Size of the item held in hand.");
         HeldOffset = Bind("HeldOffset", Vector3.zero, "Extra offset of the held item (hand space).");
@@ -130,6 +148,16 @@ internal abstract class CustomItem
     public virtual void Tick() { }
     /// <summary>Every physics step, before the physics simulation.</summary>
     public virtual void FixedTick() { }
+    /// <summary>Every frame after animation (bones are posed), before rendering.</summary>
+    public virtual void LateTick() { }
     /// <summary>Immediate-mode GUI pass (overlays such as a scope).</summary>
     public virtual void OnGUI() { }
+}
+
+internal enum ItemRarity
+{
+    /// <summary>As common as the landmine near the lead and in the Driving Range, and now and then further back.</summary>
+    Common,
+    /// <summary>As rare as the game's best items, and never for the player in the lead.</summary>
+    Powerful,
 }

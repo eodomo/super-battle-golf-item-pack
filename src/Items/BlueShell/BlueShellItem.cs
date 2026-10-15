@@ -21,7 +21,6 @@ internal class BlueShellItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;
     public override string AssetName => "blue_shell";
 
-    protected override float DefaultItemBoxChance => 0.05f;
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.4f;
 

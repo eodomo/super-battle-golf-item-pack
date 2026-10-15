@@ -12,9 +12,7 @@ internal enum WhistleTargetMode
 }
 
 /// <summary>
-/// Steam Whistle: blow it and a winged blue tank engine answers the call, swoops in and sets a player on
-/// fire, to its own epic theme (a tribute to a certain famous Skyrim mod). A "thomas_theme" .ogg/.mp3/.wav file in the item's
-/// folder plays instead of the built-in theme.
+/// Steam Whistle: blow it and a winged blue tank engine answers the call, swoops in and sets a player on fire.
 /// </summary>
 internal class SteamWhistleItem : CustomItem
 {
@@ -28,7 +26,6 @@ internal class SteamWhistleItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.Airhorn;
     public override string AssetName => "steam_whistle";
 
-    protected override float DefaultItemBoxChance => 0.06f;
     protected override int DefaultUses => 1;
 
     internal static ConfigEntry<WhistleTargetMode> TargetMode;
@@ -37,8 +34,6 @@ internal class SteamWhistleItem : CustomItem
     internal static ConfigEntry<float> LaunchUp;
     internal static ConfigEntry<float> LaunchHorizontal;
     internal static ConfigEntry<float> SoundVolume;
-    internal static ConfigEntry<float> MusicVolume;
-    internal static ConfigEntry<float> MusicSeconds;
 
     public SteamWhistleItem() => Instance = this;
 
@@ -51,8 +46,6 @@ internal class SteamWhistleItem : CustomItem
         LaunchUp = Bind("LaunchUp", 10f, "Upward launch speed of the fire blast.");
         LaunchHorizontal = Bind("LaunchHorizontal", 7f, "Sideways launch speed of the fire blast.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the whistle and fire (0-1). Local setting.");
-        MusicVolume = Bind("MusicVolume", 0.8f, "Volume of the theme music (0-1). Local setting.");
-        MusicSeconds = Bind("MusicSeconds", 14f, "How long a thomas_theme file plays before fading out (the built-in theme always plays in full).");
     }
 
     public override void ConfigureItemData(ItemData data)
@@ -80,7 +73,6 @@ internal class SteamWhistleItem : CustomItem
     {
         WhistleNet.InitSerializers();
         DragonAttacks.LoadModels(AssetDir);
-        DragonAttacks.PrepareBuiltInTheme();
     }
 
     public override void OnStartServer() => WhistleNet.RegisterServerHandlers();

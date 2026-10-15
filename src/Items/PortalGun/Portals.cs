@@ -18,6 +18,10 @@ internal class Portal
     public Portal Partner => Portals.Get(Owner, (byte)(1 - Color));
     public bool IsLinked => Partner != null;
 
+    // Travel (see PortalTravel): the wall it sits on, and the hidden floor inside that wall for walking in.
+    public readonly List<Collider> WallColliders = new();
+    public BoxCollider Sill;
+
     // Rendering
     public MeshRenderer Surface;
     public Mesh SurfaceMesh;
@@ -68,7 +72,7 @@ internal static class Portals
 
     public static Portal Get(uint owner, byte color) => portals.TryGetValue((owner, color), out Portal p) ? p : null;
 
-    public static void Place(uint owner, byte color, Vector3 position, Quaternion rotation)
+    public static void Place(uint owner, byte color, Vector3 position, Quaternion rotation, bool fresh = true)
     {
         InstallHooks();
         if (!portals.TryGetValue((owner, color), out Portal portal))
@@ -79,12 +83,17 @@ internal static class Portals
         }
         portal.Transform.SetPositionAndRotation(position, rotation);
         portal.OpenedAt = Time.time;
-        PortalTravel.ForgetRecent();
+        PortalTravel.OnPortalPlaced(portal);
 
         if (NetworkClient.spawned.TryGetValue(owner, out NetworkIdentity identity) && identity != null
             && identity.TryGetComponent(out PlayerInfo shooter))
         {
-            Beams.Show(shooter.RightHandEquipmentSwitcher.transform.position, position, Colors[color] * 1.5f, 0.08f);
+            Vector3 muzzle = shooter.RightHandEquipmentSwitcher.transform.position;
+            Beams.Show(muzzle, position, Colors[color] * 1.5f, 0.08f);
+            if (fresh)
+            {
+                PortalSounds.PlayShot(muzzle, color);
+            }
         }
     }
 
@@ -136,6 +145,8 @@ internal static class Portals
 
     private static void Destroy(Portal portal)
     {
+        PortalTravel.OnPortalRemoved(portal);
+        PortalClones.OnPortalRemoved(portal);
         if (portal.Camera != null)
         {
             Object.Destroy(portal.Camera.gameObject);

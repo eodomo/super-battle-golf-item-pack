@@ -37,22 +37,6 @@ internal static class ItemCatalog
 
     public static bool IsCustom(ItemType type) => byType.ContainsKey(type);
 
-    /// <summary>Called on the host when an item box opens. Each item gets its own configured chance.</summary>
-    public static ItemType RollItemBox(ItemType vanillaResult)
-    {
-        float roll = UnityEngine.Random.value;
-        foreach (CustomItem item in items)
-        {
-            float chance = Mathf.Clamp01(item.ItemBoxChance.Value);
-            if (roll < chance)
-            {
-                return IsRegistered(item) ? item.Type : vanillaResult;
-            }
-            roll -= chance;
-        }
-        return vanillaResult;
-    }
-
     public static bool IsRegistered(CustomItem item) =>
         GameManager.AllItems != null && GameManager.AllItems.TryGetItemData(item.Type, out _);
 
@@ -71,6 +55,7 @@ internal static class ItemCatalog
             }
         }
         RegisterNames();
+        ItemBoxes.ScanLoaded();
     }
 
     private static void RegisterItem(CustomItem item)

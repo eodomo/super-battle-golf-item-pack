@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using Mirror;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -50,9 +49,6 @@ internal static class DragonAttacks
     private static ModelAsset body;
     private static ModelAsset leftWingModel;
     private static ModelAsset rightWingModel;
-    private static FMOD.Sound theme;
-    private static FMOD.Channel themeChannel;
-    private static float themeStartedAt = -1f;
     private static bool sceneHookInstalled;
 
     public static void LoadModels(string assetDir)
@@ -102,7 +98,6 @@ internal static class DragonAttacks
         };
         BuildDragon(attack);
         attacks.Add(attack);
-        StartTheme();
     }
 
     public static void ClearAll()
@@ -116,13 +111,10 @@ internal static class DragonAttacks
             }
         }
         attacks.Clear();
-        ItemAudio.Stop(themeChannel);
-        themeStartedAt = -1f;
     }
 
     public static void Tick()
     {
-        UpdateTheme();
         for (int i = attacks.Count - 1; i >= 0; i--)
         {
             Attack attack = attacks[i];
@@ -284,67 +276,6 @@ internal static class DragonAttacks
             model.CreateModel(pivot, 1f);
         }
         return pivot;
-    }
-
-    // ---- theme music (optional, supplied by the player) ----
-
-    private static readonly string[] ThemeFiles = { "thomas_theme.ogg", "thomas_theme.mp3", "thomas_theme.wav", "thomas_theme.flac" };
-    private static bool themeLoaded;
-    private static System.Threading.Tasks.Task<float[]> builtInTheme;
-    private static float builtInSeconds;
-
-    /// <summary>Starts synthesizing the built-in anthem off the main thread (a few seconds of number crunching).</summary>
-    public static void PrepareBuiltInTheme() => builtInTheme ??= System.Threading.Tasks.Task.Run(ThemeSynth.Synthesize);
-
-    private static void StartTheme()
-    {
-        if (!themeLoaded)
-        {
-            themeLoaded = true;
-            foreach (string file in ThemeFiles)
-            {
-                string path = Path.Combine(SteamWhistleItem.Instance.AssetDir, file);
-                if (File.Exists(path) && ItemAudio.TryLoadFile(path, out theme))
-                {
-                    Plugin.Log.LogInfo($"Steam Whistle theme: {file}");
-                    break;
-                }
-            }
-        }
-        if (!theme.hasHandle() && builtInTheme != null && builtInTheme.Status == System.Threading.Tasks.TaskStatus.RanToCompletion)
-        {
-            // No theme file: use the pack's own anthem (synthesized in the background at startup).
-            theme = ItemAudio.CreateSound(builtInTheme.Result, 44100);
-            builtInSeconds = builtInTheme.Result.Length / 44100f;
-            Plugin.Log.LogInfo("Steam Whistle theme: built-in anthem");
-        }
-        if (!theme.hasHandle() || themeStartedAt >= 0f)
-        {
-            return; // not ready yet, or already playing for an earlier attack
-        }
-        themeChannel = ItemAudio.Play(theme, ItemAudio.MusicBus, SteamWhistleItem.MusicVolume.Value);
-        themeStartedAt = Time.time;
-    }
-
-    private static void UpdateTheme()
-    {
-        if (themeStartedAt < 0f)
-        {
-            return;
-        }
-        const float fade = 2f;
-        // The built-in anthem plays to its end (it has its own ending); a player's file is cut after MusicSeconds.
-        float playFor = builtInSeconds > 0f ? builtInSeconds : SteamWhistleItem.MusicSeconds.Value;
-        float age = Time.time - themeStartedAt;
-        if (age >= playFor + fade)
-        {
-            ItemAudio.Stop(themeChannel);
-            themeStartedAt = -1f;
-        }
-        else if (age > playFor)
-        {
-            ItemAudio.SetVolume(themeChannel, SteamWhistleItem.MusicVolume.Value * (1f - (age - playFor) / fade));
-        }
     }
 
     // ---- helpers ----

@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.2.1";
+    public const string Version = "0.3.0";
 
     internal static ManualLogSource Log;
 
@@ -51,6 +51,9 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new DirtBlocksItem());
         ItemCatalog.Add(new BlueShellItem());
         ItemCatalog.Add(new BoogieBombItem());
+        ItemCatalog.Add(new LightsaberItem(SaberColor.Blue));
+        ItemCatalog.Add(new LightsaberItem(SaberColor.Green));
+        ItemCatalog.Add(new LightsaberItem(SaberColor.Red));
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
@@ -76,7 +79,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 2;
+        const int ConfigVersion = 4;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -88,6 +91,43 @@ public class Plugin : BaseUnityPlugin
             foreach (CustomItem item in ItemCatalog.All)
             {
                 item.UsesPerPickup.Value = (int)item.UsesPerPickup.DefaultValue;
+            }
+        }
+        if (stored.Value < 3)
+        {
+            // 0.3.0 replaced the flat ItemBoxChance (which made pack items most of what boxes gave) with
+            // ItemBoxFrequency on top of rarity-based odds. Drop the old setting from the file.
+            if (AccessTools.Property(typeof(ConfigFile), "OrphanedEntries")?.GetValue(Config) is System.Collections.Generic.Dictionary<ConfigDefinition, string> orphans)
+            {
+                foreach (ConfigDefinition definition in new System.Collections.Generic.List<ConfigDefinition>(orphans.Keys))
+                {
+                    if (definition.Key == "ItemBoxChance")
+                    {
+                        orphans.Remove(definition);
+                    }
+                }
+            }
+        }
+        if (stored.Value < 4)
+        {
+            // The portal gun and dirt blocks no longer count shots and blocks: one use covers a whole timed
+            // build / both portals. Also drop the steam whistle's music settings.
+            foreach (CustomItem item in ItemCatalog.All)
+            {
+                if (item is PortalGunItem || item is DirtBlocksItem)
+                {
+                    item.UsesPerPickup.Value = (int)item.UsesPerPickup.DefaultValue;
+                }
+            }
+            if (AccessTools.Property(typeof(ConfigFile), "OrphanedEntries")?.GetValue(Config) is System.Collections.Generic.Dictionary<ConfigDefinition, string> orphans)
+            {
+                foreach (ConfigDefinition definition in new System.Collections.Generic.List<ConfigDefinition>(orphans.Keys))
+                {
+                    if (definition.Section == "Steam Whistle" && (definition.Key == "MusicVolume" || definition.Key == "MusicSeconds"))
+                    {
+                        orphans.Remove(definition);
+                    }
+                }
             }
         }
         stored.Value = ConfigVersion;
@@ -134,6 +174,21 @@ internal class ItemPackRunner : MonoBehaviour
 #if DEVTOOLS
         ItemMenu.OnGUI();
 #endif
+    }
+
+    private void LateUpdate()
+    {
+        foreach (CustomItem item in ItemCatalog.All)
+        {
+            try
+            {
+                item.LateTick();
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError($"{item.DisplayName} late tick failed: {e}");
+            }
+        }
     }
 
     private void FixedUpdate()

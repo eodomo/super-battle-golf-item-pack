@@ -115,7 +115,7 @@ internal static class ItemMenu
         var list = new List<(ItemType, string)>();
         foreach (CustomItem item in ItemCatalog.All)
         {
-            list.Add((item.Type, item.DisplayName));
+            list.Add((item.Type, item.MenuName));
         }
         return list;
     }
@@ -180,7 +180,7 @@ internal static class ItemMenu
             return;
         }
         int uses = ItemCatalog.TryGet(type, out CustomItem custom) ? custom.Uses : data.MaxUses;
-        string name = custom != null ? custom.DisplayName : type.ToString();
+        string name = custom != null ? custom.MenuName : type.ToString();
         bool added = GameManager.LocalPlayerInventory.ServerTryAddItem(type, uses);
         SetStatus(added ? $"Gave you: {name}." : "Your inventory is full.");
     }

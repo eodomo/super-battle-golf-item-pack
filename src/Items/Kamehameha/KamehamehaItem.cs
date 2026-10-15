@@ -26,7 +26,6 @@ internal class KamehamehaItem : CustomItem
     public override bool SuppressAiming => true;
     protected override bool HasMesh => false;
 
-    protected override float DefaultItemBoxChance => 0.06f;
     protected override int DefaultUses => 1;
 
     internal static ConfigEntry<float> MaxChargeSeconds;

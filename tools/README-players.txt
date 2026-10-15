@@ -26,5 +26,5 @@ the BepInEx folder from the game folder.
 Settings
 --------
 After the first launch, BepInEx\config\eodomo.superbattlegolf.itempack.cfg holds
-the settings (item box chances, uses per pickup, ...). Item box
-chances use the host's settings.
+the settings (how often item boxes give each item, uses per pickup, ...). Item box
+odds use the host's settings.

@@ -21,8 +21,8 @@ internal class BoogieBombItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;
     public override string AssetName => "boogie_bomb";
     public override ReticleType AimReticle => ReticleType.FreezeBomb;
+    public override ItemRarity Rarity => ItemRarity.Common;
 
-    protected override float DefaultItemBoxChance => 0.07f;
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 1f;
 

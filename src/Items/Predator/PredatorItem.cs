@@ -24,7 +24,6 @@ internal class PredatorItem : CustomItem
     public override bool HandlesOwnInput => true;
     public override bool SuppressAiming => true;
 
-    protected override float DefaultItemBoxChance => 0.05f;
     protected override int DefaultUses => 1;
 
     internal static ConfigEntry<float> Altitude;

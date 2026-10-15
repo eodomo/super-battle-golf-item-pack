@@ -27,7 +27,6 @@ internal class SniperRifleItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.ElephantGun;
     public override string AssetName => "sniper_rifle";
 
-    protected override float DefaultItemBoxChance => 0.07f;
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.6f;
 

@@ -8,9 +8,10 @@ using UnityEngine.InputSystem;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Dirt Blocks (Minecraft): a stack of 64. Right click places a block where you're looking: on the grid,
-/// against the face of the block you're pointing at, like Minecraft. Blocks are solid for players, carts
-/// and balls. A golf club swing breaks them (left click while holding the stack does too).
+/// Dirt Blocks (Minecraft): your first click starts a 10 second timer, and until it runs out you have unlimited
+/// blocks. Right click places a block where you're looking: on the grid, against the face of the block you're
+/// pointing at, like Minecraft. Blocks are solid for players, carts and balls. A golf club swing breaks them
+/// (left click while holding the stack does too). When the timer ends the item is used up; the blocks stay.
 /// </summary>
 internal class DirtBlocksItem : CustomItem
 {
@@ -27,13 +28,16 @@ internal class DirtBlocksItem : CustomItem
     public override bool SuppressAiming => true;
     protected override bool HasMesh => false;
 
-    protected override float DefaultItemBoxChance => 0.08f;
-    protected override int DefaultUses => 64;
-    protected override int MaxUsesPerPickup => 64; // a full Minecraft stack
+    protected override int DefaultUses => 1;
 
     internal static ConfigEntry<float> BlockSize;
     internal static ConfigEntry<float> Reach;
     internal static ConfigEntry<int> MaxBlocks;
+    internal static ConfigEntry<float> BuildSeconds;
+
+    // The build timer: not running (inactive), or the seconds left. It only counts down while the stack is in hand.
+    private static bool building;
+    private static float secondsLeft;
 
     private const float PlaceCooldown = 0.18f;
     private const float BreakCooldown = 0.25f;
@@ -50,6 +54,7 @@ internal class DirtBlocksItem : CustomItem
         BlockSize = Bind("BlockSize", 1f, "Edge length of a block in meters (players are about 1.7 m tall).");
         Reach = Bind("Reach", 6f, "How far from you blocks can be placed or broken (meters).");
         MaxBlocks = Bind("MaxBlocks", 1500, "Most blocks allowed in the world at once. Host setting.");
+        BuildSeconds = Bind("BuildSeconds", 10f, "How long you can place and break unlimited blocks after your first click.");
     }
 
     public override GameObject CreateHeldModel(Transform parent, float scale) => DirtWorld.CreateHeldBlock(parent, scale);
@@ -64,7 +69,11 @@ internal class DirtBlocksItem : CustomItem
     public override void OnStartServer() => DirtWorld.RegisterServerHandlers();
     public override void OnStopServer() => DirtWorld.ResetServer();
     public override void OnStartClient() => DirtWorld.RegisterClientHandlers();
-    public override void OnStopClient() => DirtWorld.ClearAll();
+    public override void OnStopClient()
+    {
+        DirtWorld.ClearAll();
+        building = false;
+    }
     public override void OnServerReady(NetworkConnectionToClient connection) => DirtWorld.SendExisting(connection);
 
     public override void Tick()
@@ -85,12 +94,35 @@ internal class DirtBlocksItem : CustomItem
             return;
         }
 
-        if (Mouse.current.rightButton.wasPressedThisFrame && Time.time >= nextPlaceTime && hasTarget && canPlace && OwnInput.CanUse(inventory))
+        if (building)
+        {
+            secondsLeft -= Time.deltaTime;
+            if (secondsLeft <= 0f)
+            {
+                // Time's up: the item is used (the blocks stay).
+                building = false;
+                if (OwnInput.CanUse(inventory))
+                {
+                    ItemUse.ConsumeUse(inventory);
+                    ItemUse.Finish(inventory);
+                }
+                return;
+            }
+        }
+        else if ((Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.rightButton.wasPressedThisFrame) && OwnInput.CanUse(inventory))
+        {
+            building = true;
+            secondsLeft = BuildSeconds.Value;
+        }
+        if (!building)
+        {
+            return;
+        }
+
+        if (Mouse.current.rightButton.wasPressedThisFrame && Time.time >= nextPlaceTime && hasTarget && canPlace)
         {
             nextPlaceTime = Time.time + PlaceCooldown;
-            ItemUse.ConsumeUse(inventory);
             DirtWorld.RequestPlace(cell, layer);
-            inventory.RemoveIfOutOfUses(inventory.EquippedItemIndex, dueToFinishedItemUse: true);
         }
         else if (Mouse.current.leftButton.wasPressedThisFrame && Time.time >= nextBreakTime
             && TryGetLookedAtBlock(inventory.PlayerInfo, out _, out Vector3Int blockCell, out bool onBlock) && onBlock)
@@ -98,6 +130,28 @@ internal class DirtBlocksItem : CustomItem
             nextBreakTime = Time.time + BreakCooldown;
             DirtWorld.RequestBreak(blockCell);
         }
+    }
+
+    private static GUIStyle hudStyle;
+
+    /// <summary>A small readout under the crosshair: the seconds left, or a hint to start the timer.</summary>
+    public override void OnGUI()
+    {
+        if (Event.current.type != EventType.Repaint || !OwnInput.TryGetHolder<DirtBlocksItem>(out PlayerInventory inventory)
+            || !inventory.PlayerInfo.Movement.IsVisible)
+        {
+            return;
+        }
+        string text = building
+            ? $"Building: {Mathf.Max(0f, secondsLeft):0.0}s"
+            : $"Click to start building ({BuildSeconds.Value:0}s)";
+        hudStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+        hudStyle.fontSize = Mathf.RoundToInt(Screen.height * 0.03f);
+        var rect = new Rect(0f, Screen.height * 0.17f, Screen.width, Screen.height * 0.05f);
+        hudStyle.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
+        GUI.Label(new Rect(rect.x + 2f, rect.y + 2f, rect.width, rect.height), text, hudStyle);
+        hudStyle.normal.textColor = building && secondsLeft < 3f ? new Color(1f, 0.45f, 0.35f) : Color.white;
+        GUI.Label(rect, text, hudStyle);
     }
 
     /// <summary>

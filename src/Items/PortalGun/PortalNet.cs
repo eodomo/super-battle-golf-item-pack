@@ -18,6 +18,8 @@ public struct PortalPlaced : NetworkMessage
     public byte color;
     public Vector3 position;
     public Quaternion rotation;
+    /// <summary>True for a shot just fired (plays its sound); false when replaying existing portals to a late joiner.</summary>
+    public bool fresh;
 }
 
 public struct PortalsCleared : NetworkMessage
@@ -40,8 +42,8 @@ internal static class PortalNet
         Writer<PortalPlaceRequest>.write = (w, m) => { w.WriteByte(m.color); w.WriteVector3(m.position); w.WriteQuaternion(m.rotation); };
         Reader<PortalPlaceRequest>.read = r => new PortalPlaceRequest { color = r.ReadByte(), position = r.ReadVector3(), rotation = r.ReadQuaternion() };
 
-        Writer<PortalPlaced>.write = (w, m) => { w.WriteUInt(m.ownerNetId); w.WriteByte(m.color); w.WriteVector3(m.position); w.WriteQuaternion(m.rotation); };
-        Reader<PortalPlaced>.read = r => new PortalPlaced { ownerNetId = r.ReadUInt(), color = r.ReadByte(), position = r.ReadVector3(), rotation = r.ReadQuaternion() };
+        Writer<PortalPlaced>.write = (w, m) => { w.WriteUInt(m.ownerNetId); w.WriteByte(m.color); w.WriteVector3(m.position); w.WriteQuaternion(m.rotation); w.WriteBool(m.fresh); };
+        Reader<PortalPlaced>.read = r => new PortalPlaced { ownerNetId = r.ReadUInt(), color = r.ReadByte(), position = r.ReadVector3(), rotation = r.ReadQuaternion(), fresh = r.ReadBool() };
 
         Writer<PortalsCleared>.write = (w, m) => w.WriteUInt(m.ownerNetId);
         Reader<PortalsCleared>.read = r => new PortalsCleared { ownerNetId = r.ReadUInt() };
@@ -55,7 +57,7 @@ internal static class PortalNet
 
     public static void RegisterClientHandlers()
     {
-        NetworkClient.ReplaceHandler<PortalPlaced>(msg => Portals.Place(msg.ownerNetId, msg.color, msg.position, msg.rotation));
+        NetworkClient.ReplaceHandler<PortalPlaced>(msg => Portals.Place(msg.ownerNetId, msg.color, msg.position, msg.rotation, msg.fresh));
         NetworkClient.ReplaceHandler<PortalsCleared>(msg => Portals.Clear(msg.ownerNetId));
     }
 
@@ -80,7 +82,9 @@ internal static class PortalNet
     {
         foreach (PortalPlaced portal in serverPortals.Values)
         {
-            connection.Send(portal);
+            PortalPlaced existing = portal;
+            existing.fresh = false;
+            connection.Send(existing);
         }
     }
 
@@ -130,6 +134,7 @@ internal static class PortalNet
             color = msg.color,
             position = msg.position,
             rotation = msg.rotation.normalized,
+            fresh = true,
         };
         serverPortals[(placed.ownerNetId, placed.color)] = placed;
         NetworkServer.SendToAll(placed);

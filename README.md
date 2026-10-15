@@ -35,7 +35,7 @@ The zip includes [BepInEx 5](https://github.com/BepInEx/BepInEx) (the mod loader
 - **Still stuck:** open an issue on this repo and attach `BepInEx\LogOutput.log`.
 
 ## Settings
-`BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: item box chance, uses per pickup, held model size, and item-specific settings. Item box chances use the host's settings.
+`BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: how often item boxes give it, uses per pickup, held model size, and item-specific settings. Item box odds use the host's settings. The pack's items are about as rare as the game's best ones and, like those, mostly go to players who are behind. The host can adjust them per item in the match setup's item probability sliders, like the game's items; `ItemBoxFrequency` (1 = normal, 0 = never) sets their starting values.
 
 ## Build
 Requires the .NET SDK (8 or 9) and the game with BepInEx installed (the build references the game's DLLs; none are committed).
@@ -73,9 +73,11 @@ Do **not** add pack items to the game's `ItemPool`: `MatchSetupRules` indexes it
 |---|---|
 | `src/Plugin.cs` | Plugin entry point, the list of items, the per-frame runner, settings migration |
 | `src/Framework/CustomItem.cs` | Base class for items: config, assets, hooks |
-| `src/Framework/ItemCatalog.cs` | Registers items, held equipment and names into the game's tables; item box rolls |
+| `src/Framework/ItemCatalog.cs` | Registers items, held equipment and names into the game's tables |
+| `src/Framework/ItemBoxes.cs` | Adds the items to the game's item box pools and to the match setup's probability sliders |
 | `src/Framework/Patches.cs` | Harmony patches: item use, held model, aim/crosshair, item boxes, network startup |
 | `src/Framework/ModelAsset.cs`, `ObjLoader.cs` | OBJ/icon loading; materials cloned from the game's toon shader |
+| `src/Framework/ModelPuppet.cs` | Copies of a player's or cart's visible model (skinned bones included) that can be posed elsewhere, without reading the game's (non-readable) meshes |
 | `src/Framework/ItemUse.cs` | Use bookkeeping through the game's own anti-cheat validation |
 | `src/Items/<Item>/` | One folder per item ([spoilers](SPOILERS.md)) |
 | `src/Framework/DroppedItems.cs` | Dropped pack items: the game's pickup is switched to the pack item and shows its model |

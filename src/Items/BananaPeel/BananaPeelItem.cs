@@ -19,8 +19,9 @@ internal class BananaPeelItem : CustomItem
     // The landmine gives us hold/plant/toss animations and placement-style use rules.
     public override ItemType TemplateItem => ItemType.Landmine;
     public override string AssetName => "banana_peel";
+    // The one everyday item in the pack.
+    public override ItemRarity Rarity => ItemRarity.Common;
 
-    protected override float DefaultItemBoxChance => 0.15f;
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.8f;
     protected override Vector3 DefaultHeldRotation => new(90f, 0f, 0f);

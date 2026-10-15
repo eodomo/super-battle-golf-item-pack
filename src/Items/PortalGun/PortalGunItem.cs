@@ -10,7 +10,11 @@ namespace ItemPack.Items;
 /// <summary>
 /// Portal Gun: left click places a blue portal where you're looking, right click an orange one, like Portal.
 /// Each player has their own pair. You can see through linked portals, and players, balls, carts and items
-/// that go through keep their momentum. Portals last until replaced or until the hole ends.
+/// that go through keep their momentum. You can stand halfway in a portal: you only come out of the other one
+/// once your middle passes through (see <see cref="PortalTravel"/>). Portals last until replaced or until the hole ends.
+///
+/// You can shoot as often as you like; the gun counts as used up once you've placed both a blue and an orange portal
+/// (the portals stay).
 ///
 /// The gun reads the mouse itself (the game only has one "use" button, and right click is its aim button),
 /// so it doesn't enter aim mode and draws its own Portal-style crosshair.
@@ -27,10 +31,14 @@ internal class PortalGunItem : CustomItem
     public override bool HandlesOwnInput => true;
     public override bool SuppressAiming => true;
 
-    protected override float DefaultItemBoxChance => 0.08f;
-    protected override int DefaultUses => 8;
+    protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 1f;
 
+    public static PortalGunItem Instance { get; private set; }
+
+    public PortalGunItem() => Instance = this;
+
+    internal static ConfigEntry<float> SoundVolume;
     internal static ConfigEntry<float> PortalWidth;
     internal static ConfigEntry<float> PortalHeight;
     internal static ConfigEntry<float> MaxRange;
@@ -40,8 +48,12 @@ internal class PortalGunItem : CustomItem
     private const float ShotCooldown = 0.3f;
     private static float nextShotTime;
 
+    // Which colors the local player has placed with the gun they're holding; both means it's used up.
+    private static readonly bool[] placedWithThisGun = new bool[2];
+
     protected override void BindConfig()
     {
+        SoundVolume = Bind("SoundVolume", 1f, "Volume of the portal gun's shots (0-1). Local setting.");
         PortalWidth = Bind("PortalWidth", 1.5f, "Portal width (meters).");
         PortalHeight = Bind("PortalHeight", 2.3f, "Portal height (meters).");
         MaxRange = Bind("MaxRange", 120f, "How far the gun can place portals (meters).");
@@ -100,19 +112,26 @@ internal class PortalGunItem : CustomItem
         player.Movement.AlignWithCameraImmediately();
         Vector3 muzzle = player.RightHandEquipmentSwitcher.transform.position;
 
+        bool usedUp = false;
         if (TryFindPlacement(player, color, out Vector3 position, out Quaternion rotation, out Vector3 aimPoint))
         {
-            ItemUse.ConsumeUse(inventory);
-            PortalNet.RequestPlace(color, position, rotation);
-            player.PlayerAudio.PlayPistolShotForAllClients();
+            PortalNet.RequestPlace(color, position, rotation); // everyone hears the shot when the portal arrives
+            placedWithThisGun[color] = true;
+            if (placedWithThisGun[0] && placedWithThisGun[1])
+            {
+                // Both portals are out: that's the use. The portals stay until the hole ends.
+                placedWithThisGun[0] = placedWithThisGun[1] = false;
+                ItemUse.ConsumeUse(inventory);
+                usedUp = true;
+            }
         }
         else
         {
-            // Fizzle: no portal, no use taken.
+            // Fizzle: no portal.
             Beams.Show(muzzle, aimPoint, new Color(0.6f, 0.6f, 0.6f), 0.12f);
         }
 
-        yield return new WaitForSeconds(ShotCooldown);
+        yield return new WaitForSeconds(usedUp ? 0.5f : ShotCooldown);
         ItemUse.Finish(inventory);
     }
 
@@ -120,7 +139,11 @@ internal class PortalGunItem : CustomItem
     public override void OnStartServer() => PortalNet.RegisterServerHandlers();
     public override void OnStopServer() => PortalNet.ResetServer();
     public override void OnStartClient() => PortalNet.RegisterClientHandlers();
-    public override void OnStopClient() => Portals.Clear(0);
+    public override void OnStopClient()
+    {
+        Portals.Clear(0);
+        placedWithThisGun[0] = placedWithThisGun[1] = false;
+    }
     public override void OnServerReady(NetworkConnectionToClient connection) => PortalNet.SendExisting(connection);
     public override void OnServerDisconnect(NetworkConnectionToClient connection) => PortalNet.OnDisconnect(connection);
     public override void Tick()
@@ -129,6 +152,7 @@ internal class PortalGunItem : CustomItem
         HandleMouse();
     }
     public override void FixedTick() => PortalTravel.FixedTick();
+    public override void LateTick() => PortalClones.LateTick();
 
     // ---- crosshair ----
 
