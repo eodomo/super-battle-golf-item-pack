@@ -88,7 +88,7 @@ internal static class ItemCatalog
         var data = (ItemData)MemberwiseCloneMethod.Invoke(template, null);
         data.Type = item.Type;
         data.name = null;
-        data.MaxUses = item.UsesPerPickup.Value;
+        data.MaxUses = item.Uses;
         if (item.Model.Icon != null)
         {
             data.Icon = item.Model.Icon;
@@ -133,7 +133,7 @@ internal static class ItemCatalog
             prefab.Type = item.Equipment;
             prefab.HasCosmetics = false;
 
-            GameObject model = item.Model.CreateModel(root.transform, item.HeldScale.Value);
+            GameObject model = item.CreateHeldModel(root.transform, item.HeldScale.Value);
             Vector3 basePosition = templateRenderer != null
                 ? template.Prefab.transform.InverseTransformPoint(templateRenderer.transform.position)
                 : Vector3.zero;

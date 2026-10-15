@@ -18,6 +18,9 @@
     <PluginInstallDir>$(GameDir)\BepInEx\plugins\ItemPack</PluginInstallDir>
     <!-- tools/package.ps1 sets this to false to build without touching the game folder. -->
     <InstallToGame Condition="'$(InstallToGame)' == ''">true</InstallToGame>
+    <!-- -p:DevTools=true adds the testing keys (F6 give, F7 item menu). Off by default, and for releases. -->
+    <DevTools Condition="'$(DevTools)' == ''">false</DevTools>
+    <DefineConstants Condition="'$(DevTools)' == 'true'">$(DefineConstants);DEVTOOLS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,6 +33,14 @@
     <Reference Include="SharedAssembly" HintPath="$(ManagedDir)\SharedAssembly.dll" Private="false" Publicize="true" />
     <Reference Include="AntiCheat" HintPath="$(ManagedDir)\AntiCheat.dll" Private="false" Publicize="true" />
     <Reference Include="Mirror" HintPath="$(ManagedDir)\Mirror.dll" Private="false" />
+    <Reference Include="FMODUnity" HintPath="$(ManagedDir)\FMODUnity.dll" Private="false" />
+    <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(ManagedDir)\UnityEngine.ParticleSystemModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(ManagedDir)\UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(ManagedDir)\UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(ManagedDir)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="UnityEngine.UIModule" HintPath="$(ManagedDir)\UnityEngine.UIModule.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(ManagedDir)\Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="UnityEngine.UnityWebRequestModule" HintPath="$(ManagedDir)\UnityEngine.UnityWebRequestModule.dll" Private="false" />
     <Reference Include="Unity.InputSystem" HintPath="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
     <Reference Include="Unity.Localization" HintPath="$(ManagedDir)\Unity.Localization.dll" Private="false" />
     <Reference Include="Unity.ResourceManager" HintPath="$(ManagedDir)\Unity.ResourceManager.dll" Private="false" />

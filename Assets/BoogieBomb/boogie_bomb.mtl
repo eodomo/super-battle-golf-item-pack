@@ -1,0 +1,21 @@
+# Kd values are sRGB
+newmtl Mirror
+Kd 0.7800 0.8000 0.8500
+
+newmtl MirrorBright
+Kd 0.9700 0.9700 1.0000
+
+newmtl MirrorDark
+Kd 0.4500 0.4700 0.5500
+
+newmtl Pink
+Kd 1.0000 0.3500 0.7500
+
+newmtl Cyan
+Kd 0.3500 0.9000 1.0000
+
+newmtl Purple
+Kd 0.5000 0.2000 0.8500
+
+newmtl Metal
+Kd 0.7000 0.6800 0.6200

@@ -10,3 +10,20 @@ dist/
 # Never commit game files or decompiled game code.
 *.dll
 !tools/**/*.dll
+__pycache__/
+*.pyc
+
+# The Steam Whistle theme is supplied by each player and is copyrighted: never commit it.
+thomas_theme.*
+
+# Optional sound replacements players add themselves (e.g. from their own copy of Halo): never commit them.
+sniper_fire.*
+sniper_zoom_in.*
+sniper_zoom_out.*
+sniper_reload.*
+
+# Any audio a player drops into an item folder is theirs (and possibly copyrighted): never commit it.
+*.ogg
+*.wav
+*.mp3
+*.flac

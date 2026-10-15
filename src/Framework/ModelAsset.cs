@@ -23,21 +23,33 @@ internal class ModelAsset
     private static readonly string[] TextureProperties = { "_BaseMap", "_MainTex", "_Albedo", "_AlbedoMap" };
     private static bool loggedShader;
 
-    public static ModelAsset Load(string directory, string name)
+    /// <summary>The game material the first item's materials were cloned from; extra models can reuse it.</summary>
+    public static Material SharedTemplate { get; private set; }
+
+    public bool HasMaterials => materials != null;
+
+    public static ModelAsset Load(string directory, string name, bool loadIcon = true, bool loadMesh = true)
     {
         var asset = new ModelAsset { Name = name };
-        try
+        if (loadMesh)
         {
-            asset.Mesh = ObjLoader.Load(Path.Combine(directory, $"{name}.obj"), Path.Combine(directory, $"{name}.mtl"), out asset.submeshColors);
-            asset.Mesh.name = $"{name}_mesh";
-            asset.Mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
-            Plugin.Log.LogInfo($"Loaded {name} mesh: {asset.Mesh.vertexCount} verts, {asset.Mesh.subMeshCount} submeshes, bounds {asset.Mesh.bounds.size}");
-        }
-        catch (Exception e)
-        {
-            Plugin.Log.LogError($"Failed to load {name} mesh from {directory}: {e}");
+            try
+            {
+                asset.Mesh = ObjLoader.Load(Path.Combine(directory, $"{name}.obj"), Path.Combine(directory, $"{name}.mtl"), out asset.submeshColors);
+                asset.Mesh.name = $"{name}_mesh";
+                asset.Mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                Plugin.Log.LogInfo($"Loaded {name} mesh: {asset.Mesh.vertexCount} verts, {asset.Mesh.subMeshCount} submeshes, bounds {asset.Mesh.bounds.size}");
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError($"Failed to load {name} mesh from {directory}: {e}");
+            }
         }
 
+        if (!loadIcon)
+        {
+            return asset;
+        }
         try
         {
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: true);
@@ -64,6 +76,7 @@ internal class ModelAsset
         }
         if (template != null)
         {
+            SharedTemplate ??= template;
             LogShaderProperties(template);
         }
         else
