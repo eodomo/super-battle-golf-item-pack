@@ -19,6 +19,8 @@ New items for Super Battle Golf:
                   swinging your golf club through them or left clicking them.
   Blue Shell    - Goes after whoever's ball is closest to the hole and blows
                   them (and their lead) up.
+  Boogie Bomb   - Throw it: everyone caught in the blast does their victory
+                  dance for a few seconds.
 
 Steam Whistle music: put your own audio file named thomas_theme.ogg (or .mp3,
 .wav, .flac) in BepInEx\plugins\ItemPack\SteamWhistle\ to hear it during the

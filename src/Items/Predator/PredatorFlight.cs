@@ -58,8 +58,7 @@ internal static class PredatorFlight
         UpdateCamera();
 
         // Hand the mouse to the missile: gameplay controls off, cursor kept locked.
-        InputManager.EnableMode(InputMode.ForceDisabled);
-        InputManager.SetCursorForceLocked(true);
+        InputLock.Acquire();
 
         PredatorSounds.PlayLaunch(1f);
         loop = PredatorSounds.StartLoop(PredatorItem.SoundVolume.Value * 0.8f);
@@ -166,8 +165,7 @@ internal static class PredatorFlight
             Object.Destroy(camera.gameObject);
             camera = null;
         }
-        InputManager.SetCursorForceLocked(false);
-        InputManager.DisableMode(InputMode.ForceDisabled);
+        InputLock.Release();
     }
 
     private static int impactMask = -1;

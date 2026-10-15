@@ -65,15 +65,16 @@ def new_object(scene, name, bm, materials, smooth=True):
     bm.free()
     for m in materials:
         mesh.materials.append(m)
-    for poly in mesh.polygons:
-        poly.use_smooth = smooth
+    if smooth is not None:  # None keeps each face's own setting
+        for poly in mesh.polygons:
+            poly.use_smooth = smooth
     obj = bpy.data.objects.new(name, mesh)
     scene.collection.objects.link(obj)
     return obj
 
 
-def merge(scene, name, parts, materials):
-    """Joins bmesh parts (all in world space) into one object."""
+def merge(scene, name, parts, materials, flat_materials=()):
+    """Joins bmesh parts (all in world space) into one object. Faces using flat_materials get flat shading."""
     merged = bmesh.new()
     for bm in parts:
         mesh = bpy.data.meshes.new("tmp")
@@ -82,7 +83,9 @@ def merge(scene, name, parts, materials):
         merged.from_mesh(mesh)
         bpy.data.meshes.remove(mesh)
     bmesh.ops.recalc_face_normals(merged, faces=merged.faces)
-    return new_object(scene, name, merged, materials)
+    for face in merged.faces:
+        face.smooth = face.material_index not in flat_materials
+    return new_object(scene, name, merged, materials, smooth=None)
 
 
 def cylinder(radius1, radius2, depth, matrix, segments=20, material=0):
