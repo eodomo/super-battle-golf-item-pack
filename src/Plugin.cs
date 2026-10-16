@@ -97,7 +97,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 11;
+        const int ConfigVersion = 12;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -197,6 +197,11 @@ public class Plugin : BaseUnityPlugin
         {
             // The thrown shield now flies until it hits something (its range is how far before it's lost).
             CapShieldItem.ThrowRange.Value = (float)CapShieldItem.ThrowRange.DefaultValue;
+        }
+        if (stored.Value < 12)
+        {
+            // The Web Slinger glove was too small in hand.
+            WebSlingerItem.Instance.HeldScale.Value = (float)WebSlingerItem.Instance.HeldScale.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

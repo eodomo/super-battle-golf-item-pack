@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HarmonyLib;
 using Mirror;
 using UnityEngine;
 
@@ -27,7 +28,9 @@ internal static class PortalTravel
     private const float ScanBehind = 2.5f;
     private const float ScanFront = 4f;
     private const float ExitDepth = 0.01f;    // how far past the exit's surface a teleported center ends up
-    private const float SillReach = 1.2f;     // wall portals whose bottom is this close to the floor get a sill
+    private const float FloorNormalY = 0.6f;  // portals facing up at least this much are floor portals
+    private const float MinFloorExitSpeed = 7f; // how fast a player pops out of a floor portal at least
+    private const float SillReach = 1.2f;   // wall portals whose bottom is this close to the floor get a sill
 
     private sealed class Passage
     {
@@ -254,6 +257,10 @@ internal static class PortalTravel
         passage ??= Begin(portal, body, entity);
         passage.Step = step;
         IgnoreWall(passage);
+        if (n.y > FloorNormalY && entity.IsPlayer && Controls(entity) && entity.PlayerInfo.Movement.IsGrounded)
+        {
+            entity.PlayerInfo.Movement.Unground(); // standing on a floor portal: fall in (see FloorPortalGroundingPatch)
+        }
         if (depth < 0f && Controls(entity))
         {
             Teleport(passage, center, depth, local);
@@ -364,6 +371,10 @@ internal static class PortalTravel
         return false;
     }
 
+    /// <summary>Whether this player is going through a floor portal right now, so the floor under them shouldn't hold them up.</summary>
+    public static bool IsFallingIntoFloorPortal(PlayerInfo player) =>
+        passages.TryGetValue(player.Rigidbody, out Passage passage) && passage.Portal.Transform != null && passage.Portal.Transform.forward.y > FloorNormalY;
+
     /// <summary>Whether this client moves <paramref name="entity"/> (see the class summary).</summary>
     private static bool Controls(Entity entity)
     {
@@ -390,6 +401,16 @@ internal static class PortalTravel
         exitLocal.z = Mathf.Max(-depth, ExitDepth);
         Vector3 exitCenter = exit.Transform.position + exit.Transform.rotation * exitLocal;
         Vector3 velocity = travel * body.linearVelocity;
+        Vector3 exitUp = exit.Transform.forward;
+        if (entity.IsPlayer && exitUp.y > FloorNormalY)
+        {
+            // Dropping slowly into a floor portal still pops you out of the other one (or you'd fall straight back in).
+            float outward = Vector3.Dot(velocity, exitUp);
+            if (outward < MinFloorExitSpeed)
+            {
+                velocity += exitUp * (MinFloorExitSpeed - outward);
+            }
+        }
         Vector3 pivotOffset = body.position - center;
 
         if (entity.IsPlayer)
@@ -527,5 +548,23 @@ internal static class PortalTravel
                 | (1 << layers.ItemsLayer) | (1 << layers.HittablesLayer) | (1 << layers.StationaryBallLayer) | (1 << layers.DynamicBallLayer);
         }
         return travellerMask;
+    }
+}
+
+/// <summary>
+/// The game finds the ground with a ray down from the player's middle, which Physics.IgnoreCollision doesn't affect,
+/// so a floor portal would hold the player up. While they're going through one, skip the ground check.
+/// </summary>
+[HarmonyPatch(typeof(PlayerMovement), "CanGround")]
+internal static class FloorPortalGroundingPatch
+{
+    private static bool Prefix(PlayerMovement __instance, ref bool __result)
+    {
+        if (__instance.PlayerInfo != null && PortalTravel.IsFallingIntoFloorPortal(__instance.PlayerInfo))
+        {
+            __result = false;
+            return false;
+        }
+        return true;
     }
 }

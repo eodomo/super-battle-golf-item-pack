@@ -1,5 +1,6 @@
 using System.Collections;
 using BepInEx.Configuration;
+using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -31,12 +32,15 @@ internal class WebSlingerItem : CustomItem
     public override bool SuppressAiming => true;
 
     protected override int DefaultUses => 1;
+    protected override float DefaultHeldScale => 1.8f;
 
     internal static ConfigEntry<float> SlingSeconds;
     internal static ConfigEntry<float> MaxRange;
     internal static ConfigEntry<float> ReelSpeed;
     internal static ConfigEntry<float> PullStrength;
     internal static ConfigEntry<float> MaxSpeed;
+    internal static ConfigEntry<float> YankStrength;
+    internal static ConfigEntry<float> YankSpeed;
     internal static ConfigEntry<float> SoundVolume;
 
     private const float MinRope = 4f;
@@ -50,6 +54,8 @@ internal class WebSlingerItem : CustomItem
     private static bool attached;
     private static Vector3 anchor;
     private static float ropeLength;
+    // Set when the web stuck to a player, cart or item: that gets reeled in to us instead of us swinging.
+    private static uint reelTarget;
 
     public WebSlingerItem() => Instance = this;
 
@@ -60,6 +66,8 @@ internal class WebSlingerItem : CustomItem
         ReelSpeed = Bind("ReelSpeed", 4f, "How fast the web reels you in while you swing (m/s). 0 for a plain pendulum.");
         PullStrength = Bind("PullStrength", 55f, "How hard the web pulls you toward where it stuck (m/s per second).");
         MaxSpeed = Bind("MaxSpeed", 32f, "Fastest you can go while swinging (m/s).");
+        YankStrength = Bind("YankStrength", 80f, "How hard the web pulls a player, cart or item you hit toward you (m/s per second).");
+        YankSpeed = Bind("YankSpeed", 26f, "Fastest a player, cart or item you hit gets reeled in (m/s).");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the web sounds (0-1). Local setting.");
     }
 
@@ -75,7 +83,9 @@ internal class WebSlingerItem : CustomItem
     public override void OnStopClient()
     {
         SlingerWebs.ClearAll();
+        SlingerNet.Reset();
         attached = false;
+        reelTarget = 0;
         slinging = false;
     }
 
@@ -154,6 +164,17 @@ internal class WebSlingerItem : CustomItem
             // Be forgiving when aiming at thin things or the horizon.
             hit = NearestHit(player, cam, AimAssistRadius, distance, mask, out target);
         }
+        // Something that can be dragged (a player, cart or item) closer than the scenery is reeled in to us.
+        if (FindMovable(player, cam, distance, out RaycastHit movable, out uint movableId)
+            && (!hit || movable.distance <= target.distance)
+            && (movable.point - player.transform.position).sqrMagnitude <= MaxRange.Value * MaxRange.Value)
+        {
+            reelTarget = movableId;
+            attached = true;
+            SlingerWebs.Attach(player.netId, movable.point, movableId);
+            SlingerNet.SendAttach(movable.point, movableId);
+            return;
+        }
         if (!hit || (target.point - player.transform.position).sqrMagnitude > MaxRange.Value * MaxRange.Value)
         {
             // Missed: the web just flies off and fizzles.
@@ -177,6 +198,56 @@ internal class WebSlingerItem : CustomItem
     }
 
     private static readonly RaycastHit[] hits = new RaycastHit[32];
+
+    /// <summary>The nearest other player (on foot), golf cart or loose item along the view, with its network id.</summary>
+    private static bool FindMovable(PlayerInfo player, Camera cam, float distance, out RaycastHit best, out uint netId)
+    {
+        LayerSettings layers = GameManager.LayerSettings;
+        int mask = layers.PlayersMask | layers.GolfCartsMask | (1 << layers.ItemsLayer);
+        netId = 0;
+        if (!NearestHit(player, cam, 0.35f, distance, mask, out best))
+        {
+            return false;
+        }
+        Collider collider = best.collider;
+        Entity entity = collider.GetComponentInParent<Entity>();
+        NetworkIdentity identity = null;
+        if (entity != null && (entity.IsGolfCart || (entity.IsPlayer && !entity.PlayerInfo.ActiveGolfCartSeat.IsValid())))
+        {
+            identity = entity.GetComponentInParent<NetworkIdentity>();
+        }
+        else if (entity == null)
+        {
+            PhysicalItem item = collider.GetComponentInParent<PhysicalItem>();
+            identity = item != null ? item.GetComponentInParent<NetworkIdentity>() : null;
+        }
+        if (identity == null || identity.netId == 0 || identity == player.GetComponent<NetworkIdentity>())
+        {
+            return false;
+        }
+        netId = identity.netId;
+        return true;
+    }
+
+    /// <summary>Accelerates a grabbed body toward the slinger's hand, stopping short so it arrives instead of overshooting.</summary>
+    internal static void Reel(Rigidbody body, Vector3 hand, float dt)
+    {
+        Vector3 toHand = hand - body.worldCenterOfMass;
+        float distance = toHand.magnitude;
+        Vector3 velocity = body.linearVelocity;
+        if (distance < 3f)
+        {
+            velocity *= Mathf.Max(0f, 1f - 8f * dt);
+        }
+        else
+        {
+            // A little lift keeps it off the ground (and offsets gravity) on the way in.
+            velocity += (toHand / distance + Vector3.up * 0.3f).normalized * (YankStrength.Value * dt);
+            velocity.y += -Physics.gravity.y * 0.8f * dt;
+            velocity = Vector3.ClampMagnitude(velocity, YankSpeed.Value);
+        }
+        body.linearVelocity = velocity;
+    }
 
     /// <summary>The nearest thing along the camera's view that isn't the player's own body (a ray, or a fat one with a radius).</summary>
     private static bool NearestHit(PlayerInfo player, Camera cam, float radius, float distance, int mask, out RaycastHit best)
@@ -204,6 +275,7 @@ internal class WebSlingerItem : CustomItem
             return;
         }
         attached = false;
+        reelTarget = 0;
         PlayerInfo player = GameManager.LocalPlayerInfo;
         if (player != null)
         {
@@ -214,7 +286,9 @@ internal class WebSlingerItem : CustomItem
 
     public override void FixedTick()
     {
-        if (!attached)
+        SlingerNet.FixedTick();
+        // A web stuck to something we're reeling in doesn't move us.
+        if (!attached || reelTarget != 0)
         {
             return;
         }

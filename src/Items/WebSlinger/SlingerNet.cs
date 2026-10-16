@@ -7,12 +7,14 @@ namespace ItemPack.Items;
 public struct WebAttachRequest : NetworkMessage
 {
     public Vector3 anchor;
+    public uint targetNetId; // 0 = stuck to the world; otherwise the player, cart or item being reeled in
 }
 
 public struct WebAttach : NetworkMessage
 {
     public uint swingerNetId;
     public Vector3 anchor;
+    public uint targetNetId;
 }
 
 public struct WebDetachRequest : NetworkMessage
@@ -32,12 +34,19 @@ internal static class SlingerNet
 {
     private const float MaxAnchorDistance = 200f;
 
+    // Things the web grabbed are reeled in toward the slinger's hand. Carts and dropped items belong to the host, so
+    // it pulls those (swinger -> target); a player moves themselves, so the pulled player's own client does it.
+    private static readonly Dictionary<uint, uint> serverPulls = new();
+    private static readonly List<uint> finished = new();
+    private static uint pulledBy;
+    private static float pulledUntil;
+
     public static void InitSerializers()
     {
-        Writer<WebAttachRequest>.write = (w, m) => w.WriteVector3(m.anchor);
-        Reader<WebAttachRequest>.read = r => new WebAttachRequest { anchor = r.ReadVector3() };
-        Writer<WebAttach>.write = (w, m) => { w.WriteUInt(m.swingerNetId); w.WriteVector3(m.anchor); };
-        Reader<WebAttach>.read = r => new WebAttach { swingerNetId = r.ReadUInt(), anchor = r.ReadVector3() };
+        Writer<WebAttachRequest>.write = (w, m) => { w.WriteVector3(m.anchor); w.WriteUInt(m.targetNetId); };
+        Reader<WebAttachRequest>.read = r => new WebAttachRequest { anchor = r.ReadVector3(), targetNetId = r.ReadUInt() };
+        Writer<WebAttach>.write = (w, m) => { w.WriteUInt(m.swingerNetId); w.WriteVector3(m.anchor); w.WriteUInt(m.targetNetId); };
+        Reader<WebAttach>.read = r => new WebAttach { swingerNetId = r.ReadUInt(), anchor = r.ReadVector3(), targetNetId = r.ReadUInt() };
         Writer<WebDetachRequest>.write = (w, m) => { };
         Reader<WebDetachRequest>.read = r => new WebDetachRequest();
         Writer<WebDetach>.write = (w, m) => w.WriteUInt(m.swingerNetId);
@@ -56,7 +65,12 @@ internal static class SlingerNet
         {
             if (!IsLocal(msg.swingerNetId))
             {
-                SlingerWebs.Attach(msg.swingerNetId, msg.anchor);
+                SlingerWebs.Attach(msg.swingerNetId, msg.anchor, msg.targetNetId);
+                if (IsLocal(msg.targetNetId))
+                {
+                    pulledBy = msg.swingerNetId;
+                    pulledUntil = Time.time + WebSlingerItem.SlingSeconds.Value + 1f;
+                }
             }
         });
         NetworkClient.ReplaceHandler<WebDetach>(msg =>
@@ -64,15 +78,19 @@ internal static class SlingerNet
             if (!IsLocal(msg.swingerNetId))
             {
                 SlingerWebs.Detach(msg.swingerNetId);
+                if (pulledBy == msg.swingerNetId)
+                {
+                    pulledBy = 0;
+                }
             }
         });
     }
 
-    public static void SendAttach(Vector3 anchor)
+    public static void SendAttach(Vector3 anchor, uint targetNetId = 0)
     {
         if (NetworkClient.active)
         {
-            NetworkClient.Send(new WebAttachRequest { anchor = anchor });
+            NetworkClient.Send(new WebAttachRequest { anchor = anchor, targetNetId = targetNetId });
         }
     }
 
@@ -88,7 +106,13 @@ internal static class SlingerNet
     {
         if (conn.identity != null && (conn.identity.transform.position - msg.anchor).sqrMagnitude <= MaxAnchorDistance * MaxAnchorDistance)
         {
-            NetworkServer.SendToAll(new WebAttach { swingerNetId = conn.identity.netId, anchor = msg.anchor });
+            serverPulls.Remove(conn.identity.netId);
+            if (msg.targetNetId != 0 && NetworkServer.spawned.TryGetValue(msg.targetNetId, out NetworkIdentity target) && target != null
+                && !target.TryGetComponent(out PlayerInfo _) && (target.transform.position - conn.identity.transform.position).sqrMagnitude <= MaxAnchorDistance * MaxAnchorDistance)
+            {
+                serverPulls[conn.identity.netId] = msg.targetNetId;
+            }
+            NetworkServer.SendToAll(new WebAttach { swingerNetId = conn.identity.netId, anchor = msg.anchor, targetNetId = msg.targetNetId });
         }
     }
 
@@ -96,11 +120,62 @@ internal static class SlingerNet
     {
         if (conn.identity != null)
         {
+            serverPulls.Remove(conn.identity.netId);
             NetworkServer.SendToAll(new WebDetach { swingerNetId = conn.identity.netId });
         }
     }
 
-    private static bool IsLocal(uint netId) => GameManager.LocalPlayerInfo != null && GameManager.LocalPlayerInfo.netId == netId;
+    /// <summary>Every physics step: the host reels in the carts and items webs are stuck to, and a pulled player reels themselves in.</summary>
+    public static void FixedTick()
+    {
+        if (NetworkServer.active && serverPulls.Count > 0)
+        {
+            finished.Clear();
+            foreach (KeyValuePair<uint, uint> pull in serverPulls)
+            {
+                if (!NetworkServer.spawned.TryGetValue(pull.Key, out NetworkIdentity swinger) || swinger == null
+                    || !NetworkServer.spawned.TryGetValue(pull.Value, out NetworkIdentity target) || target == null)
+                {
+                    finished.Add(pull.Key);
+                    continue;
+                }
+                Rigidbody body = target.GetComponentInChildren<Rigidbody>();
+                if (body != null && !body.isKinematic && swinger.TryGetComponent(out PlayerInfo player))
+                {
+                    WebSlingerItem.Reel(body, SlingerWebs.HandOf(player), Time.fixedDeltaTime);
+                }
+            }
+            foreach (uint netId in finished)
+            {
+                serverPulls.Remove(netId);
+            }
+        }
+
+        if (pulledBy != 0)
+        {
+            PlayerInfo local = GameManager.LocalPlayerInfo;
+            if (Time.time > pulledUntil || local == null || !local.Movement.IsVisible || local.ActiveGolfCartSeat.IsValid()
+                || !NetworkClient.spawned.TryGetValue(pulledBy, out NetworkIdentity swinger) || swinger == null
+                || !swinger.TryGetComponent(out PlayerInfo slinger))
+            {
+                pulledBy = 0;
+                return;
+            }
+            WebSlingerItem.Reel(local.Rigidbody, SlingerWebs.HandOf(slinger), Time.fixedDeltaTime);
+            if (local.Movement.IsGrounded)
+            {
+                local.Movement.Unground();
+            }
+        }
+    }
+
+    public static void Reset()
+    {
+        serverPulls.Clear();
+        pulledBy = 0;
+    }
+
+    private static bool IsLocal(uint netId) => netId != 0 && GameManager.LocalPlayerInfo != null && GameManager.LocalPlayerInfo.netId == netId;
 }
 
 /// <summary>The web strands of everyone who's swinging, on each client.</summary>
@@ -115,6 +190,7 @@ internal static class SlingerWebs
         public PlayerInfo player;
         public bool attached;
         public Vector3 anchor;
+        public Transform target;
         public float attachTime;
         public float detachTime;
         public LineRenderer line;
@@ -125,7 +201,7 @@ internal static class SlingerWebs
     private static readonly List<uint> gone = new();
     private static Material strandMaterial;
 
-    public static void Attach(uint netId, Vector3 anchor)
+    public static void Attach(uint netId, Vector3 anchor, uint targetNetId = 0)
     {
         View view = GetOrCreate(netId);
         if (view == null)
@@ -134,6 +210,7 @@ internal static class SlingerWebs
         }
         view.attached = true;
         view.anchor = anchor;
+        view.target = targetNetId != 0 && NetworkClient.spawned.TryGetValue(targetNetId, out NetworkIdentity grabbed) && grabbed != null ? grabbed.transform : null;
         view.attachTime = Time.time;
         view.line.enabled = true;
         view.splat.SetActive(true);
@@ -175,6 +252,11 @@ internal static class SlingerWebs
             if (view.attached)
             {
                 Vector3 hand = HandOf(view.player);
+                if (view.target != null)
+                {
+                    view.anchor = view.target.position + Vector3.up * 0.5f;
+                    view.splat.transform.position = view.anchor;
+                }
                 float shot = Mathf.Clamp01((Time.time - view.attachTime) / ShootSeconds);
                 view.line.SetPosition(0, hand);
                 view.line.SetPosition(1, Vector3.Lerp(hand, view.anchor, shot));
