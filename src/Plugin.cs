@@ -161,7 +161,11 @@ public class Plugin : BaseUnityPlugin
             // Reset the lightsaber's uses again: some test installs reached version 5 while its default was still 3.
             LightsaberItem.Primary.UsesPerPickup.Value = (int)LightsaberItem.Primary.UsesPerPickup.DefaultValue;
         }
-if (stored.Value < 8)        {            // The Megazord's cart knockback was halved.            ZordItem.CartKnockback.Value = (float)ZordItem.CartKnockback.DefaultValue;        }
+        if (stored.Value < 8)
+        {
+            // The Megazord's cart knockback was halved.
+            ZordItem.CartKnockback.Value = (float)ZordItem.CartKnockback.DefaultValue;
+        }
         stored.Value = ConfigVersion;
         Config.Save();
         Log.LogInfo($"Updated settings to version {ConfigVersion}.");
