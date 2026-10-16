@@ -82,7 +82,10 @@ internal static class BoogieWorld
             float t = now - bomb.spawnTime;
             int index = Mathf.Min(Mathf.FloorToInt(t / SimStep), bomb.path.Count - 1);
             int next = Mathf.Min(index + 1, bomb.path.Count - 1);
-            bomb.go.transform.position = Vector3.Lerp(bomb.path[index], bomb.path[next], t / SimStep - Mathf.Floor(t / SimStep));
+            Vector3 from = bomb.path[index], to = bomb.path[next];
+            bomb.go.transform.position = (to - from).sqrMagnitude > 4f
+                ? to // came out of a portal: no sliding across the map in between
+                : Vector3.Lerp(from, to, t / SimStep - Mathf.Floor(t / SimStep));
             bomb.go.transform.rotation = Quaternion.Euler(0f, t * 400f, Mathf.Sin(t * 9f) * 12f);
             if (t >= bomb.explodeAt)
             {
@@ -256,17 +259,41 @@ internal static class BoogieWorld
         landTime = -1f;
         int steps = Mathf.CeilToInt(MaxFlight / SimStep);
         int mask = GroundMask;
+        Portal lastExit = null; // the portal it just came out of, which it can't go straight back into
+        int exitedAt = 0;
         for (int i = 1; i <= steps; i++)
         {
+            if (lastExit != null && i - exitedAt > 10)
+            {
+                lastExit = null;
+            }
             v += Physics.gravity * SimStep;
             Vector3 next = position + v * SimStep;
-            if (Physics.Linecast(position, next, out RaycastHit hit, mask, QueryTriggerInteraction.Ignore))
+            bool blocked = Physics.Linecast(position, next, out RaycastHit hit, mask, QueryTriggerInteraction.Ignore);
+            float stepLength = (next - position).magnitude;
+            // Into a portal (before whatever wall it's on): out of the other one, carrying its speed.
+            if (stepLength > 0.0001f
+                && PortalShots.TryFindEntry(position, (next - position) / stepLength, stepLength, lastExit, out Portal portal, out float t)
+                && (!blocked || hit.distance >= t - 0.1f))
+            {
+                Vector3 direction = (next - position) / stepLength;
+                v = portal.MapDirection(v);
+                position = portal.MapPoint(position + direction * t) + v.normalized * 0.05f;
+                lastExit = portal.Partner;
+                exitedAt = i;
+                path.Add(position);
+                continue;
+            }
+            if (blocked)
             {
                 if (landTime < 0f && hit.normal.y > 0.5f)
                 {
                     landTime = i * SimStep;
                 }
-                v = Vector3.Reflect(v, hit.normal) * 0.45f; // bouncy, loses energy
+                // A little bouncy; on the ground it mostly stops sliding, so it ends up about where it landed.
+                Vector3 into = Vector3.Project(v, hit.normal);
+                Vector3 along = v - into;
+                v = -into * 0.35f + along * (hit.normal.y > 0.5f ? 0.2f : 0.5f);
                 position = hit.point + hit.normal * 0.15f;
                 if (v.magnitude < 0.6f && hit.normal.y > 0.5f)
                 {
@@ -290,7 +317,7 @@ internal static class BoogieWorld
         return path;
     }
 
-    private static int GroundMask
+    internal static int GroundMask
     {
         get
         {

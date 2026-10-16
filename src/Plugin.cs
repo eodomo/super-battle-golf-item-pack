@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.5.0";
+    public const string Version = "0.5.1";
 
     internal static ManualLogSource Log;
 
@@ -80,7 +80,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 5;
+        const int ConfigVersion = 7;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -148,6 +148,16 @@ public class Plugin : BaseUnityPlugin
                     }
                 }
             }
+        }
+        if (stored.Value < 6)
+        {
+            // The boogie bomb is thrown faster and flatter, at where you aim.
+            BoogieBombItem.ThrowSpeed.Value = (float)BoogieBombItem.ThrowSpeed.DefaultValue;
+        }
+        if (stored.Value < 7)
+        {
+            // Reset the lightsaber's uses again: some test installs reached version 5 while its default was still 3.
+            LightsaberItem.Primary.UsesPerPickup.Value = (int)LightsaberItem.Primary.UsesPerPickup.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

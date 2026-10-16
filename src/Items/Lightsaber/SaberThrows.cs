@@ -147,6 +147,16 @@ internal static class SaberThrows
                 continue;
             }
             bool local = flight.thrower == GameManager.LocalPlayerInfo;
+            if (Time.time - flight.startTime > MaxFlightSeconds + 1f)
+            {
+                // Never left out in the air (or stuck out of your hand) whatever happened to it.
+                ended.Add(flight.netId);
+                if (local)
+                {
+                    SaberNet.SendThrowState(Gone, flight.position, flight.direction, flight.color);
+                }
+                continue;
+            }
             if (!flight.returning)
             {
                 float step = Speed * dt;

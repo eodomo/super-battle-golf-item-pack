@@ -5,8 +5,7 @@ using UnityEngine;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Boogie Bomb (Fortnite): throw the disco ball (aim to throw where you're looking, otherwise it's lobbed
-/// forward). It bounces, pops, and everyone caught in the blast does their victory dance for a few seconds,
+/// Boogie Bomb (Fortnite): throw the disco ball; it lands where the crosshair points (and goes through portals). It bounces, pops, and everyone caught in the blast does their victory dance for a few seconds,
 /// unable to move or use items (they can still look around). Electromagnet shields protect you.
 /// </summary>
 internal class BoogieBombItem : CustomItem
@@ -38,7 +37,7 @@ internal class BoogieBombItem : CustomItem
     {
         Radius = Bind("Radius", 6f, "Blast radius (meters): everyone inside dances.");
         DanceSeconds = Bind("DanceSeconds", 5f, "How long people dance.");
-        ThrowSpeed = Bind("ThrowSpeed", 17f, "Throw speed (m/s).");
+        ThrowSpeed = Bind("ThrowSpeed", 26f, "Throw speed (m/s). It's thrown on the flattest arc that lands where you aim.");
         AffectThrower = Bind("AffectThrower", true, "Whether the thrower dances too if they're caught in their own blast.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the pop and the disco music (0-1). Local setting.");
     }
@@ -55,26 +54,80 @@ internal class BoogieBombItem : CustomItem
     {
         PlayerInfo player = inventory.PlayerInfo;
         inventory.SetCurrentItemUse(ItemUseType.Regular);
-        if (aiming)
-        {
-            player.Movement.AlignWithCameraImmediately();
-        }
+        player.Movement.AlignWithCameraImmediately();
         float throwTime = GameManager.ItemSettings.FreezeBombThrowTime;
         yield return new WaitForSeconds(throwTime > 0.05f && throwTime < 1f ? throwTime : 0.25f);
 
         ItemUse.ConsumeUse(inventory);
         Vector3 hand = player.RightHandEquipmentSwitcher.transform.position;
-        Camera cam = GameManager.Camera;
-        Vector3 direction = aiming && cam != null
-            ? (cam.transform.forward + Vector3.up * 0.15f).normalized          // where you're looking, slightly arced
-            : (player.transform.forward + Vector3.up * 0.55f).normalized;      // a lob in front of you
-        Vector3 velocity = direction * ThrowSpeed.Value + player.Rigidbody.linearVelocity * 0.5f;
         inventory.LocalPlayerMarkThrownItem(PlayerInventory.ThrownItemHand.Right);
-        BoogieNet.RequestThrow(hand, velocity);
+        BoogieNet.RequestThrow(hand, AimedVelocity(player, hand));
 
         yield return new WaitForSeconds(0.45f);
         ItemUse.Finish(inventory);
     }
+
+    /// <summary>
+    /// A throw from the hand that lands where the crosshair points (the flattest arc that gets there at the throw
+    /// speed), or as far as it can go toward it if that's out of reach.
+    /// </summary>
+    private static Vector3 AimedVelocity(PlayerInfo player, Vector3 hand)
+    {
+        const float MaxAim = 80f;
+        float speed = ThrowSpeed.Value;
+        Camera cam = GameManager.Camera;
+        if (cam == null)
+        {
+            return (player.transform.forward + Vector3.up * 0.3f).normalized * speed;
+        }
+        Vector3 forward = cam.transform.forward;
+        int mask = BoogieWorld.GroundMask | GameManager.LayerSettings.PlayersMask;
+        Vector3 target = cam.transform.position + forward * MaxAim;
+        int count = Physics.RaycastNonAlloc(cam.transform.position, forward, aimHits, MaxAim, mask, QueryTriggerInteraction.Ignore);
+        float nearest = MaxAim;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = aimHits[i];
+            if (hit.distance < nearest && hit.collider.GetComponentInParent<PlayerInfo>() != player)
+            {
+                nearest = hit.distance;
+                target = hit.point;
+            }
+        }
+
+        Vector3 delta = target - hand;
+        Vector3 flat = new Vector3(delta.x, 0f, delta.z);
+        float x = flat.magnitude;
+        if (x < 0.5f)
+        {
+            return forward * speed; // straight up or down
+        }
+        Vector3 across = flat / x;
+        float y = delta.y;
+        float g = -Physics.gravity.y;
+
+        // A short lob a little above the straight line to the target, at just the speed that lands it there...
+        float lob = Mathf.Min(Mathf.Atan2(y, x) + 18f * Mathf.Deg2Rad, 60f * Mathf.Deg2Rad);
+        float rise = x * Mathf.Tan(lob) - y;
+        if (rise > 0.01f)
+        {
+            float cos = Mathf.Cos(lob);
+            float needed = Mathf.Sqrt(g * x * x / (2f * cos * cos * rise));
+            if (needed <= speed)
+            {
+                return (across * cos + Vector3.up * Mathf.Sin(lob)) * needed;
+            }
+        }
+        // ...or for far targets, the flattest arc at full speed (or as far as it goes if it can't reach).
+        float v2 = speed * speed;
+        float disc = v2 * v2 - g * (g * x * x + 2f * y * v2);
+        float angle = disc >= 0f
+            ? Mathf.Atan((v2 - Mathf.Sqrt(disc)) / (g * x))
+            : Mathf.PI * 0.25f;
+        return (across * Mathf.Cos(angle) + Vector3.up * Mathf.Sin(angle)) * speed;
+    }
+
+    private static readonly RaycastHit[] aimHits = new RaycastHit[16];
 
     protected override void RegisterMessages() => BoogieNet.InitSerializers();
     public override void OnStartServer() => BoogieNet.RegisterServerHandlers();

@@ -60,8 +60,9 @@ internal class LightsaberItem : CustomItem
     public override bool ListedInItemBoxes => IsPrimary;
     public override ItemType RollFromItemBox() => (ItemType)(FirstId + Random.Range(0, 3));
 
-    // Right click throws instead of aiming.
+    // Right click throws instead of aiming; both buttons are read in Tick (the game's use button is swallowed).
     public override bool SuppressAiming => true;
+    public override bool HandlesOwnInput => true;
 
     protected override int DefaultUses => 1;
 
@@ -149,6 +150,7 @@ internal class LightsaberItem : CustomItem
         {
             SaberSlicer.Tick();
             SaberThrows.Tick();
+            TrySwing();
             TryThrow();
         }
     }
@@ -369,6 +371,19 @@ internal class LightsaberItem : CustomItem
             SaberNet.RequestCut(hittable.netId, point, normal, (byte)Variant);
         }
         inventory.CmdValidateAndConsumeItemUse(useHash); // after the hits, like the guns
+    }
+
+    /// <summary>Left click: swing.</summary>
+    private void TrySwing()
+    {
+        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame || Time.time < nextSwing || SaberThrows.LocalActive
+            || !OwnInput.TryGetHolder<LightsaberItem>(out PlayerInventory inventory)
+            || inventory.IsUsingItemAtAll || !OwnInput.CanUse(inventory)
+            || !ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) || item is not LightsaberItem saber)
+        {
+            return;
+        }
+        OwnInput.StartUse(inventory, saber.UseRoutine(inventory, false));
     }
 
     // ---- throwing ----

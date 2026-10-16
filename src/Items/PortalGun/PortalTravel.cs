@@ -176,6 +176,27 @@ internal static class PortalTravel
             }
         }
 
+        // Rockets and freeze bombs, in case their layer isn't one of the travellers'.
+        PortalProjectiles.Live.RemoveWhere(body => body == null);
+        foreach (Rigidbody body in PortalProjectiles.Live)
+        {
+            if (body.isKinematic || !seen.Add(body) || !body.TryGetComponent(out Entity entity))
+            {
+                continue;
+            }
+            foreach (Portal portal in Portals.All)
+            {
+                if (IsOpen(portal) && IsOpen(portal.Partner) && (body.position - portal.Transform.position).sqrMagnitude < 36f)
+                {
+                    Evaluate(portal, body, entity, null);
+                    if (passages.ContainsKey(body))
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
         // Anything that stopped touching its portal gets its collisions back.
         scratch.Clear();
         scratch.AddRange(passages.Values);
@@ -213,14 +234,18 @@ internal static class PortalTravel
         // Is the center inside the rim (or, for something fast, will it be where it crosses the surface)?
         Quaternion toLocal = Quaternion.Inverse(t.rotation);
         Vector3 local = toLocal * (center - t.position);
-        bool inside = InsideRim(portal, local, passage != null ? EdgeSlack : 1f);
+        // Past the surface already: what counts is where it crossed (fast things like rockets move sideways a lot in one step).
+        Vector3 rimLocal = depth < 0f && approach > 0.05f ? local + toLocal * velocity * (depth / approach) : local;
+        bool inside = InsideRim(portal, rimLocal, passage != null ? EdgeSlack : 1f);
         if (!inside && passage == null && approach > 0.05f && depth > 0f)
         {
             float time = depth / approach;
             inside = time < Time.fixedDeltaTime * 2f && InsideRim(portal, local + toLocal * velocity * time, 1f);
         }
         float gap = depth - extent; // between the surface and the nearest point of the object
-        bool touching = inside && gap <= Mathf.Max(TouchSlack, approach * Time.fixedDeltaTime * 1.5f) && depth > -extent - 0.6f;
+        // Fast things (rockets) can get a whole step's travel past the surface before they're teleported.
+        float reach = extent + 0.6f + Mathf.Max(0f, approach) * Time.fixedDeltaTime * 1.5f;
+        bool touching = inside && gap <= Mathf.Max(TouchSlack, approach * Time.fixedDeltaTime * 1.5f) && depth > -reach;
         if (!touching)
         {
             return;
@@ -383,6 +408,7 @@ internal static class PortalTravel
             body.linearVelocity = velocity;
             body.angularVelocity = angularVelocity;
             entity.InformTeleported();
+            PortalProjectiles.OnTeleported(entity, position);
             RotateLocalCameraIfRiding(entity, travel);
         }
 
