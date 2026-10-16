@@ -192,7 +192,7 @@ internal sealed class ZordView : MonoBehaviour
 
     private const float SwingTime = 1.0f, StrikeAt = 0.38f;
     private float swingStart = -10f;
-    private const float SwingSpeed = 1f;
+    private const float SwingSpeed = 0.5f; // half speed: a slow, heavy swing
     private float SwingElapsed => (Time.time - swingStart) * SwingSpeed;
     private bool strikeDone = true;
     private bool whooshed;
@@ -299,8 +299,13 @@ internal sealed class ZordView : MonoBehaviour
             direction = direction.sqrMagnitude > 0.01f ? direction.normalized : forward;
             hittable.HitWithItem(ItemType.DuelingPistol, me.Inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
                 hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(center),
-                hittable.ItemSettings.DuelingPistolMinKnockbackDistance * 2f, me.Inventory, isReflected: false, isInSpecialState: false,
+                hittable.ItemSettings.DuelingPistolMinKnockbackDistance * 3f, me.Inventory, isReflected: false, isInSpecialState: false,
                 canHitWithNoUser: true, hitTimestamp: NetworkTime.time);
+            if (entity.IsGolfCart)
+            {
+                // A normal hit barely moves a cart: shove it away, and a little along the swing (right to left).
+                ZordKnock.Send(entity.AsGolfCart, direction - Vector3.ProjectOnPlane(cart.right, Vector3.up) * 0.35f);
+            }
             hitSomething = true;
         }
 

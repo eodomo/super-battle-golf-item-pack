@@ -27,7 +27,7 @@ public struct ZordCryRequest : NetworkMessage
 internal static class ZordCarts
 {
     private const double MinToggleInterval = 4.0;
-    private const double SwingInterval = 1.3;
+    private const double SwingInterval = 2.2;
 
     // Host: marked carts (netId -> unused).
     private static readonly Dictionary<uint, bool> serverState = new();
@@ -42,11 +42,20 @@ internal static class ZordCarts
         Reader<ZordState>.read = r => new ZordState { cartNetId = r.ReadUInt(), action = r.ReadByte() };
         Writer<ZordCryRequest>.write = (w, m) => w.WriteByte(m.action);
         Reader<ZordCryRequest>.read = r => new ZordCryRequest { action = r.ReadByte() };
+        ZordKnock.Init();
     }
 
-    public static void RegisterServerHandlers() => NetworkServer.RegisterHandler<ZordCryRequest>(OnServerCryRequest);
+    public static void RegisterServerHandlers()
+    {
+        NetworkServer.RegisterHandler<ZordCryRequest>(OnServerCryRequest);
+        ZordKnock.RegisterServer();
+    }
 
-    public static void RegisterClientHandlers() => NetworkClient.ReplaceHandler<ZordState>(msg => Apply(msg.cartNetId, msg.action));
+    public static void RegisterClientHandlers()
+    {
+        NetworkClient.ReplaceHandler<ZordState>(msg => Apply(msg.cartNetId, msg.action));
+        ZordKnock.RegisterClient();
+    }
 
     public static void ResetServer()
     {
@@ -377,4 +386,68 @@ internal static class ZordNoHornPatches
 
     [HarmonyPrefix, HarmonyPatch(nameof(PlayerInfo.EndSpecialGolfCartHonk))]
     private static bool EndSpecial(PlayerInfo __instance) => !InZord(__instance);
+}
+
+/// <summary>Driver to host: knock this cart away (direction is a unit vector, the speed is the host's own setting).</summary>
+public struct ZordKnockRequest : NetworkMessage
+{
+    public uint cartNetId;
+    public Vector3 direction;
+}
+
+/// <summary>Host to whoever simulates the cart: apply this velocity kick.</summary>
+public struct ZordKnockApply : NetworkMessage
+{
+    public uint cartNetId;
+    public Vector3 velocity;
+}
+
+internal static class ZordKnock
+{
+    public static void Init()
+    {
+        Writer<ZordKnockRequest>.write = (w, m) => { w.WriteUInt(m.cartNetId); w.WriteVector3(m.direction); };
+        Reader<ZordKnockRequest>.read = r => new ZordKnockRequest { cartNetId = r.ReadUInt(), direction = r.ReadVector3() };
+        Writer<ZordKnockApply>.write = (w, m) => { w.WriteUInt(m.cartNetId); w.WriteVector3(m.velocity); };
+        Reader<ZordKnockApply>.read = r => new ZordKnockApply { cartNetId = r.ReadUInt(), velocity = r.ReadVector3() };
+    }
+
+    public static void RegisterServer() => NetworkServer.RegisterHandler<ZordKnockRequest>(OnRequest);
+
+    public static void RegisterClient() => NetworkClient.ReplaceHandler<ZordKnockApply>(msg => Apply(msg.cartNetId, msg.velocity));
+
+    /// <summary>The swinger's side: a normal hit barely moves a heavy cart, so give it a real shove.</summary>
+    public static void Send(GolfCartInfo cart, Vector3 direction) =>
+        NetworkClient.Send(new ZordKnockRequest { cartNetId = cart.netId, direction = direction.normalized });
+
+    private static void OnRequest(NetworkConnectionToClient conn, ZordKnockRequest request)
+    {
+        if (conn.identity == null || !conn.identity.TryGetComponent(out PlayerInfo player) || !player.ActiveGolfCartSeat.IsDriver()
+            || !ZordCarts.IsZord(player.ActiveGolfCartSeat.golfCart)
+            || !NetworkServer.spawned.TryGetValue(request.cartNetId, out NetworkIdentity target) || target == null)
+        {
+            return;
+        }
+        Vector3 dir = request.direction.sqrMagnitude > 0.01f ? request.direction.normalized : Vector3.up;
+        Vector3 velocity = new Vector3(dir.x, 0f, dir.z).normalized * ZordItem.CartKnockback.Value + Vector3.up * ZordItem.CartKnockback.Value * 0.3f;
+        // Whoever simulates the cart applies it: its driver's machine if it has one, otherwise the host.
+        if (target.connectionToClient != null && target.connectionToClient != NetworkServer.localConnection)
+        {
+            target.connectionToClient.Send(new ZordKnockApply { cartNetId = request.cartNetId, velocity = velocity });
+        }
+        else
+        {
+            Apply(request.cartNetId, velocity, serverSide: true);
+        }
+    }
+
+    private static void Apply(uint netId, Vector3 velocity, bool serverSide = false)
+    {
+        Dictionary<uint, NetworkIdentity> spawned = serverSide ? NetworkServer.spawned : NetworkClient.spawned;
+        if (spawned.TryGetValue(netId, out NetworkIdentity identity) && identity != null && identity.TryGetComponent(out Rigidbody body) && !body.isKinematic)
+        {
+            body.linearVelocity += velocity;
+            body.angularVelocity += new Vector3(velocity.z, 0f, -velocity.x) * 0.05f;
+        }
+    }
 }
