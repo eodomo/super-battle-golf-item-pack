@@ -1,0 +1,24 @@
+# Kd values are sRGB
+newmtl Metal
+Kd 0.5500 0.5800 0.6200
+
+newmtl DarkMetal
+Kd 0.2500 0.2700 0.3000
+
+newmtl Yellow
+Kd 0.9800 0.8000 0.1000
+
+newmtl Black
+Kd 0.0800 0.0800 0.0900
+
+newmtl Red
+Kd 0.9000 0.0800 0.0800
+
+newmtl RedDark
+Kd 0.5500 0.0400 0.0500
+
+newmtl Table
+Kd 0.7200 0.8000 0.8600
+
+newmtl TableRim
+Kd 0.4500 0.5200 0.6000

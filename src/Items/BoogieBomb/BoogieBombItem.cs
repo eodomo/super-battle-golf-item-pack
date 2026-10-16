@@ -62,7 +62,7 @@ internal class BoogieBombItem : CustomItem
         ItemUse.ConsumeUse(inventory);
         Vector3 hand = player.RightHandEquipmentSwitcher.transform.position;
         inventory.LocalPlayerMarkThrownItem(PlayerInventory.ThrownItemHand.Right);
-        BoogieNet.RequestThrow(hand, AimedVelocity(player, hand));
+        BoogieNet.RequestThrow(hand, AimedVelocity(player, hand, ThrowSpeed.Value));
 
         yield return new WaitForSeconds(0.45f);
         ItemUse.Finish(inventory);
@@ -72,10 +72,9 @@ internal class BoogieBombItem : CustomItem
     /// A throw from the hand that lands where the crosshair points (the flattest arc that gets there at the throw
     /// speed), or as far as it can go toward it if that's out of reach.
     /// </summary>
-    private static Vector3 AimedVelocity(PlayerInfo player, Vector3 hand)
+    internal static Vector3 AimedVelocity(PlayerInfo player, Vector3 hand, float speed)
     {
         const float MaxAim = 80f;
-        float speed = ThrowSpeed.Value;
         Camera cam = GameManager.Camera;
         if (cam == null)
         {

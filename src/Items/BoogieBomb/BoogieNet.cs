@@ -144,7 +144,10 @@ internal static class BoogieDance
             return;
         }
         dancing = false;
-        SetGameplayControls(true);
+        if (!MeetingWorld.Frozen)
+        {
+            SetGameplayControls(true);
+        }
         PlayerInfo player = GameManager.LocalPlayerInfo;
         if (player != null && player.EmoteBeingPlayed == Emote.VictoryDance)
         {

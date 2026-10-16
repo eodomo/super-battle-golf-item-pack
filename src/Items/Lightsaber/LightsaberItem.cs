@@ -17,7 +17,7 @@ internal enum SaberColor : byte
 /// <summary>
 /// Lightsaber: a blue, green or red one at random. Use to swing (aim to swing where you're looking). Anyone it
 /// connects with is knocked out and falls apart in two at the cut; golf carts are cut in half and destroyed
-/// (their passengers get knocked out too). Swing as often as you like; only a hit uses it up. Right click throws it:
+/// (their passengers get knocked out too). Swing as often as you like; only a hit uses it up. Aim (right click) and use to throw it:
 /// it spins out along your aim and comes back like a boomerang if it doesn't hit anyone.
 ///
 /// The three colors are three item types that share one name, settings section and item box entry, so a pickup's
@@ -62,9 +62,10 @@ internal class LightsaberItem : CustomItem
     public override bool ListedInItemBoxes => IsPrimary;
     public override ItemType RollFromItemBox() => (ItemType)(FirstId + Random.Range(0, 3));
 
-    // Right click throws instead of aiming; both buttons are read in Tick (the game's use button is swallowed).
-    public override bool SuppressAiming => true;
+    // Left click swings; hold right click to aim (the pistol's crosshair) and left click to throw. Both buttons are read
+    // in Tick (the game's use button is swallowed).
     public override bool HandlesOwnInput => true;
+    public override ReticleType AimReticle => ReticleType.DuelingPistol;
 
     protected override int DefaultUses => 1;
 
@@ -375,10 +376,11 @@ internal class LightsaberItem : CustomItem
         inventory.CmdValidateAndConsumeItemUse(useHash); // after the hits, like the guns
     }
 
-    /// <summary>Left click: swing.</summary>
+    /// <summary>Left click (not aiming): swing.</summary>
     private void TrySwing()
     {
-        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame || Time.time < nextSwing || SaberThrows.LocalActive
+        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.rightButton.isPressed
+            || Time.time < nextSwing || SaberThrows.LocalActive
             || !OwnInput.TryGetHolder<LightsaberItem>(out PlayerInventory inventory)
             || inventory.IsUsingItemAtAll || !OwnInput.CanUse(inventory)
             || !ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) || item is not LightsaberItem saber)
@@ -390,10 +392,11 @@ internal class LightsaberItem : CustomItem
 
     // ---- throwing ----
 
-    /// <summary>Right click: throw the saber where you're looking (see <see cref="SaberThrows"/>).</summary>
+    /// <summary>Right click (aiming) + left click: throw the saber where you're looking (see <see cref="SaberThrows"/>).</summary>
     private void TryThrow()
     {
-        if (Mouse.current == null || !Mouse.current.rightButton.wasPressedThisFrame || SaberThrows.LocalActive
+        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame || !Mouse.current.rightButton.isPressed
+            || SaberThrows.LocalActive
             || !OwnInput.TryGetHolder<LightsaberItem>(out PlayerInventory inventory)
             || inventory.IsUsingItemAtAll || !OwnInput.CanUse(inventory)
             || !ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) || item is not LightsaberItem saber)
@@ -407,9 +410,7 @@ internal class LightsaberItem : CustomItem
     {
         PlayerInfo player = inventory.PlayerInfo;
         player.Movement.AlignWithCameraImmediately();
-        inventory.SetCurrentItemUse(ItemUseType.Regular); // the freeze bomb's throw
-        float throwTime = GameManager.ItemSettings.FreezeBombThrowTime;
-        yield return new WaitForSeconds(throwTime > 0.05f && throwTime < 1f ? throwTime * 0.85f : 0.2f);
+        inventory.SetCurrentItemUse(ItemUseType.Regular); // the freeze bomb's throw animation, played as it flies (no wind-up)
 
         Camera cam = GameManager.Camera;
         Vector3 origin = SlingerWebs.HandOf(player);

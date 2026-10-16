@@ -29,6 +29,8 @@ internal class BananaPeelItem : CustomItem
     internal static ConfigEntry<float> TossSpeedMultiplier;
     internal static ConfigEntry<float> SlipRadius;
     internal static ConfigEntry<float> MinSlipSpeed;
+    internal static ConfigEntry<float> MinCartSlipSpeed;
+    internal static ConfigEntry<float> CartSpinTurns;
     internal static ConfigEntry<float> SlipForwardBoost;
     internal static ConfigEntry<float> SlipUpBoost;
     internal static ConfigEntry<float> ArmDelay;
@@ -43,6 +45,8 @@ internal class BananaPeelItem : CustomItem
         TossSpeedMultiplier = Bind("TossSpeedMultiplier", 1.2f, "Throw speed relative to the landmine toss (hold aim + use to throw).");
         SlipRadius = Bind("SlipRadius", 0.75f, "How close (meters, at GroundScale 1) you must step to a peel to slip. Scales with GroundScale.");
         MinSlipSpeed = Bind("MinSlipSpeed", 1.0f, "Minimum running speed (m/s) to slip.");
+        MinCartSlipSpeed = Bind("MinCartSlipSpeed", 2.5f, "Minimum speed (m/s) for a golf cart (or the Megazord) to slip on a peel.");
+        CartSpinTurns = Bind("CartSpinTurns", 2f, "How many full turns a cart spins when it slips.");
         SlipForwardBoost = Bind("SlipForwardBoost", 6f, "Forward launch speed when slipping.");
         SlipUpBoost = Bind("SlipUpBoost", 6.5f, "Upward launch speed when slipping.");
         ArmDelay = Bind("ArmDelay", 0.4f, "Seconds after landing before anyone can slip.");

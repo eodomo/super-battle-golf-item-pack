@@ -1,0 +1,15 @@
+# Kd values are sRGB
+newmtl Olive
+Kd 0.3600 0.4000 0.2700
+
+newmtl Dark
+Kd 0.1600 0.1700 0.1600
+
+newmtl Metal
+Kd 0.6200 0.6300 0.6000
+
+newmtl Glow
+Kd 1.0000 0.7800 0.2500
+
+newmtl Stripe
+Kd 0.9500 0.7000 0.1500

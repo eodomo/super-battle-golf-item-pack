@@ -128,6 +128,7 @@ internal static class BananaWorld
         toDelete.Clear();
 
         CheckLocalPlayerSlip(now);
+        CheckCartSlips(now);
     }
 
     private static void UpdateFlight(Banana banana, float now)
@@ -209,6 +210,54 @@ internal static class BananaWorld
             }
             Slip(player, banana, horizontalVelocity.normalized);
             return;
+        }
+    }
+
+    private static readonly Collider[] cartOverlap = new Collider[16];
+
+    /// <summary>
+    /// Carts (and the Megazord, which is one) that drive over a peel spin out. Whoever simulates a cart's physics (its
+    /// driver, or the host for an empty one) checks it, so each cart is checked exactly once.
+    /// </summary>
+    private static void CheckCartSlips(float now)
+    {
+        float radius = BananaPeelItem.SlipRadius.Value * BananaPeelItem.GroundScale.Value + 0.3f;
+        float minSpeed = BananaPeelItem.MinCartSlipSpeed.Value;
+        PlayerInfo local = GameManager.LocalPlayerInfo;
+        foreach (Banana banana in bananas.Values)
+        {
+            if (banana.state != State.Landed || now - banana.landTime < BananaPeelItem.ArmDelay.Value)
+            {
+                continue;
+            }
+            Vector3 peel = banana.go.transform.position;
+            int count = Physics.OverlapSphereNonAlloc(peel + Vector3.up * 0.3f, radius, cartOverlap, GameManager.LayerSettings.GolfCartsMask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                GolfCartInfo cart = cartOverlap[i].GetComponentInParent<GolfCartInfo>();
+                Rigidbody body = cartOverlap[i].attachedRigidbody;
+                if (cart == null || body == null || body.isKinematic || CartSlip.IsSlipping(cart))
+                {
+                    continue; // someone else simulates this cart, or it's already spinning
+                }
+                // The peel's owner driving over their own fresh peel gets the owner's grace time, like on foot.
+                bool ownerDriving = local != null && local.netId == banana.ownerNetId && local.ActiveGolfCartSeat.IsValid()
+                    && local.ActiveGolfCartSeat.golfCart == cart;
+                if (ownerDriving && now - banana.landTime < BananaPeelItem.OwnerArmDelay.Value)
+                {
+                    continue;
+                }
+                Vector3 flat = Vector3.ProjectOnPlane(body.linearVelocity, Vector3.up);
+                if (flat.sqrMagnitude < minSpeed * minSpeed)
+                {
+                    continue;
+                }
+                CartSlip.Begin(cart, body);
+                Plugin.Log.LogInfo($"{cart.name} slipped on banana {banana.id}.");
+                StartFlyAway(banana, flat.normalized);
+                BananaNet.RequestSlip(banana.id);
+                return;
+            }
         }
     }
 

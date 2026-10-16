@@ -25,6 +25,9 @@ internal abstract class CustomItem
     /// <summary>Name in the testing menu, where variants sharing a display name need telling apart.</summary>
     public virtual string MenuName => DisplayName;
 
+    /// <summary>Settings file section. BepInEx section names can't contain quotes, brackets, = or backslashes.</summary>
+    protected virtual string ConfigSection => DisplayName;
+
     /// <summary>Vanilla item whose ItemData is cloned (hold/use animations, use rules, HUD behavior).</summary>
     public abstract ItemType TemplateItem { get; }
 
@@ -120,7 +123,7 @@ internal abstract class CustomItem
 
     /// <summary>Config entries go in a section named after the item.</summary>
     protected ConfigEntry<T> Bind<T>(string key, T defaultValue, string description) =>
-        config.Bind(DisplayName, key, defaultValue, description);
+        config.Bind(ConfigSection, key, defaultValue, description);
 
     /// <summary>Bind item-specific config with <see cref="Bind{T}"/>.</summary>
     protected virtual void BindConfig() { }

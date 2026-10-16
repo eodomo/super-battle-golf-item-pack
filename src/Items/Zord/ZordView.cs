@@ -69,8 +69,79 @@ internal sealed class ZordView : MonoBehaviour
                 }
             }
         }
+        AddBodyHitBox(cart);
         lastPosition = cart.transform.position;
         Plugin.Log.LogInfo($"Zord cart ready (scale {scale}, {cartRenderers.Count} cart renderers hidden, {(passengerColliders?.Length ?? 0)} passenger colliders).");
+    }
+
+    /// <summary>
+    /// The cart's own colliders only cover a golf cart's worth of the Megazord. A box around its body and legs (not the swinging
+    /// arms or sword) makes it as big to hit, bump into and run into as it looks. The cart keeps its own center of mass and
+    /// inertia, so it drives and tips exactly as before.
+    /// </summary>
+    private void AddBodyHitBox(GolfCartInfo cart)
+    {
+        if (!cart.TryGetComponent(out Rigidbody body))
+        {
+            return;
+        }
+        Collider template = null;
+        foreach (Collider c in cart.GetComponentsInChildren<Collider>(true))
+        {
+            if (!c.isTrigger && c.attachedRigidbody == body && (passengerColliders == null || System.Array.IndexOf(passengerColliders, c) < 0))
+            {
+                template = c;
+                break;
+            }
+        }
+        if (template == null)
+        {
+            return;
+        }
+        var bounds = new Bounds();
+        bool any = false;
+        foreach (MeshFilter part in Rig.Root.GetComponentsInChildren<MeshFilter>(true))
+        {
+            string name = part.name;
+            if (part.sharedMesh == null || name.StartsWith("upperArm") || name.StartsWith("foreArm") || name == "sword")
+            {
+                continue;
+            }
+            Bounds mesh = part.sharedMesh.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 corner = mesh.center + Vector3.Scale(mesh.extents, new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f));
+                Vector3 local = cart.transform.InverseTransformPoint(part.transform.TransformPoint(corner));
+                if (any)
+                {
+                    bounds.Encapsulate(local);
+                }
+                else
+                {
+                    bounds = new Bounds(local, Vector3.zero);
+                    any = true;
+                }
+            }
+        }
+        if (!any)
+        {
+            return;
+        }
+        // Keep it off the ground (the cart's own colliders and wheels handle that), so driving isn't affected.
+        float bottom = Mathf.Max(bounds.min.y, 0.3f);
+        Vector3 centerOfMass = body.centerOfMass, inertia = body.inertiaTensor;
+        Quaternion inertiaRotation = body.inertiaTensorRotation;
+        var hitBox = new GameObject("MegazordHitBox");
+        hitBox.layer = template.gameObject.layer;
+        hitBox.transform.SetParent(cart.transform, false);
+        var box = hitBox.AddComponent<BoxCollider>();
+        box.center = new Vector3(bounds.center.x, (bottom + bounds.max.y) * 0.5f, bounds.center.z);
+        box.size = new Vector3(bounds.size.x, bounds.max.y - bottom, bounds.size.z);
+        box.sharedMaterial = template.sharedMaterial;
+        body.centerOfMass = centerOfMass;
+        body.inertiaTensor = inertia;
+        body.inertiaTensorRotation = inertiaRotation;
+        Plugin.Log.LogInfo($"Megazord hit box: {box.size} at {box.center} (layer {hitBox.layer}).");
     }
 
     public void StartCry()
@@ -131,7 +202,6 @@ internal sealed class ZordView : MonoBehaviour
         }
     }
 
-    private float tiltedFor;
     private float prevSpeed;
 
     private void FixedUpdate()
@@ -161,30 +231,10 @@ internal sealed class ZordView : MonoBehaviour
             float maxTurn = ZordItem.TurnRate.Value * Mathf.Deg2Rad;
             Vector3 w = body.angularVelocity;
             float yaw = Vector3.Dot(w, t.up);
-            if (Mathf.Abs(yaw) > maxTurn)
+            if (Mathf.Abs(yaw) > maxTurn && !CartSlip.IsSlipping(Cart)) // a banana spin-out overrides the slow turning
             {
                 body.angularVelocity = w - t.up * yaw + t.up * (Mathf.Sign(yaw) * maxTurn);
             }
-        }
-
-        // A cart that rolled over (a crash) would leave the Megazord lying on its side: the host stands it back up.
-        if (!NetworkServer.active)
-        {
-            return;
-        }
-        if (Vector3.Dot(t.up, Vector3.up) >= 0.5f)
-        {
-            tiltedFor = 0f;
-            return;
-        }
-        tiltedFor += Time.fixedDeltaTime;
-        if (tiltedFor > 1.2f)
-        {
-            tiltedFor = 0f;
-            body.angularVelocity = Vector3.zero;
-            body.linearVelocity = Vector3.zero;
-            body.position += Vector3.up * 1.5f;
-            body.rotation = Quaternion.Euler(0f, t.eulerAngles.y, 0f);
         }
     }
 

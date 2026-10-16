@@ -161,6 +161,18 @@ internal class SaberBlade : MonoBehaviour
 
         owner ??= ownerInfo != null ? ownerInfo.transform : null;
         PoseSwing();
+        // Gripped in the hand itself (the borrowed freeze bomb hold would leave it floating in front of the palm).
+        if (owner != null)
+        {
+            FindArm();
+            if (hand != null)
+            {
+                // Inside the fist: just past the wrist on the way to the tool bone (which sits out at the fingertips).
+                transform.position = hand.parent != null ? Vector3.Lerp(hand.parent.position, hand.position, 0.12f) : hand.position;
+                // ...and into the middle of the fist, which sits toward the player's left of the wrist.
+                transform.position -= owner.right * (0.065f * owner.lossyScale.x);
+            }
+        }
 
         // How fast the tip moves relative to the body carrying it, so walking or running in a straight line doesn't
         // count as swinging; only the arm moving does. The owner's turning is tracked separately.

@@ -4,10 +4,13 @@ namespace ItemPack;
 internal static class ItemUse
 {
     /// <summary>Takes one use, through the game's own anti-cheat bookkeeping, exactly like the coffee item does.</summary>
-    public static void ConsumeUse(PlayerInventory inventory)
+    public static void ConsumeUse(PlayerInventory inventory) => ConsumeUseAt(inventory, inventory.EquippedItemIndex);
+
+    /// <summary>Takes one use from the item in slot <paramref name="index"/> (which needn't be the one in hand any more).</summary>
+    public static void ConsumeUseAt(PlayerInventory inventory, int index)
     {
-        ulong useHash = inventory.GetEquippedItemUseHash();
-        inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
+        ulong useHash = inventory.GetEffectiveSlot(index).GetUsageValidationHash();
+        inventory.DecrementUseFromSlotAt(index);
         inventory.CmdValidateAndConsumeItemUse(useHash);
     }
 

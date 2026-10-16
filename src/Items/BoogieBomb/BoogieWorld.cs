@@ -147,7 +147,7 @@ internal static class BoogieWorld
             return;
         }
         Vector3 center = local.transform.position + Vector3.up * 0.9f;
-        if ((center - position).sqrMagnitude <= radius * radius)
+        if ((center - position).sqrMagnitude <= radius * radius && !BubbleWorld.Separates(center, position))
         {
             BoogieDance.Start(seconds);
         }
