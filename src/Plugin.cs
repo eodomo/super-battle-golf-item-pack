@@ -26,6 +26,8 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<bool> DebugGiveEnabled;
     internal static ConfigEntry<Key> DebugGiveKey;
     internal static ConfigEntry<Key> MenuKey;
+    internal static ConfigEntry<bool> DevMcpEnabled;
+    internal static ConfigEntry<int> DevMcpPort;
 #endif
 
     private void Awake()
@@ -39,6 +41,9 @@ public class Plugin : BaseUnityPlugin
             "or in a match with the game's cheats (console commands) rule turned on.");
         DebugGiveKey = Config.Bind("Debug", "GiveKey", Key.F6, "Gives the host the next pack item (cycles through all of them).");
         MenuKey = Config.Bind("Debug", "MenuKey", Key.F7, "Opens a menu to give the host any pack item or game item.");
+        DevMcpEnabled = Config.Bind("Debug", "DevMcpEnabled", true,
+            "Runs the localhost server that tools/DevMcp (the dev MCP server for Claude Code) uses to drive the game.");
+        DevMcpPort = Config.Bind("Debug", "DevMcpPort", 47150, "Port of that server (127.0.0.1 only).");
 #endif
 
         // ---- The pack's items. To add one, write a CustomItem subclass and list it here. ----
@@ -76,6 +81,12 @@ public class Plugin : BaseUnityPlugin
         runner.hideFlags = HideFlags.HideAndDontSave;
         DontDestroyOnLoad(runner);
         Runner = runner.AddComponent<ItemPackRunner>();
+#if DEVTOOLS
+        if (DevMcpEnabled.Value)
+        {
+            DevMcp.DevServer.Start(DevMcpPort.Value);
+        }
+#endif
 
         Log.LogInfo($"Item Pack {Version} loaded with {ItemCatalog.All.Count} items.");
     }
@@ -215,6 +226,7 @@ internal class ItemPackRunner : MonoBehaviour
         }
         Beams.Tick();
 #if DEVTOOLS
+        DevMcp.DevServer.Update();
         ItemMenu.Update();
         if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current[Key.F9].wasPressedThisFrame)
         {

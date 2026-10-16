@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Dev MCP server for Claude Code: a stdio MCP server that forwards tool calls to the game's DevTools build
+    (src/DevMcp, listening on 127.0.0.1:47150). Build: dotnet build tools\DevMcp -c Release
+    Claude Code starts it through run.cmd, which runs a copy from %TEMP%, so building never hits a locked file.
+  -->
+  <PropertyGroup>
+    <OutputPath>bin\out\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+</Project>

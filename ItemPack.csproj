@@ -24,6 +24,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- tools\DevMcp is its own program (the dev MCP server), not part of the plugin. -->
+    <Compile Remove="tools\**" />
+    <None Remove="tools\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
   </ItemGroup>
 
@@ -33,6 +39,7 @@
     <Reference Include="SharedAssembly" HintPath="$(ManagedDir)\SharedAssembly.dll" Private="false" Publicize="true" />
     <Reference Include="AntiCheat" HintPath="$(ManagedDir)\AntiCheat.dll" Private="false" Publicize="true" />
     <Reference Include="Mirror" HintPath="$(ManagedDir)\Mirror.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />
     <Reference Include="FMODUnity" HintPath="$(ManagedDir)\FMODUnity.dll" Private="false" />
     <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(ManagedDir)\UnityEngine.ParticleSystemModule.dll" Private="false" />
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(ManagedDir)\UnityEngine.IMGUIModule.dll" Private="false" />
@@ -50,6 +57,7 @@
     <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
     <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ManagedDir)\UnityEngine.PhysicsModule.dll" Private="false" />
     <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ScreenCaptureModule" HintPath="$(ManagedDir)\UnityEngine.ScreenCaptureModule.dll" Private="false" />
     <Reference Include="UnityEngine.AnimationModule" HintPath="$(ManagedDir)\UnityEngine.AnimationModule.dll" Private="false" />
     <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)\BepInEx.dll" Private="false" />
     <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)\0Harmony.dll" Private="false" />
