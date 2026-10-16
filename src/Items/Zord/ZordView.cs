@@ -192,11 +192,7 @@ internal sealed class ZordView : MonoBehaviour
 
     private const float SwingTime = 1.0f, StrikeAt = 0.38f;
     private float swingStart = -10f;
-#if DEVTOOLS
-    private const float SwingSpeed = 0.25f; // slow motion for filming test builds
-#else
     private const float SwingSpeed = 1f;
-#endif
     private float SwingElapsed => (Time.time - swingStart) * SwingSpeed;
     private bool strikeDone = true;
     private bool whooshed;
@@ -275,26 +271,31 @@ internal sealed class ZordView : MonoBehaviour
         PlayerInfo me = GameManager.LocalPlayerInfo;
         Transform cart = Cart.transform;
         Vector3 forward = Vector3.ProjectOnPlane(cart.forward, Vector3.up).normalized;
-        Vector3 center = Rig.Root.position + forward * (1.5f * scale) + Vector3.up * (1.0f * scale);
-        float radius = 2.6f * scale;
+        Vector3 center = Rig.Root.position + forward * (2.2f * scale) + Vector3.up * (0.7f * scale);
+        float radius = 2.4f * scale;
         bool hitSomething = false;
 
-        int count = Physics.OverlapSphereNonAlloc(center, radius, overlap, GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
+        LayerSettings layers = GameManager.LayerSettings;
+        int count = Physics.OverlapSphereNonAlloc(center, radius, overlap, layers.PlayersMask | layers.GolfCartsMask, QueryTriggerInteraction.Ignore);
         struck.Clear();
         for (int i = 0; i < count; i++)
         {
             Hittable hittable = overlap[i].GetComponentInParent<Hittable>();
-            if (hittable == null || !struck.Add(hittable) || !hittable.AsEntity.IsPlayer)
+            if (hittable == null || !struck.Add(hittable) || hittable.gameObject == Cart.gameObject)
             {
                 continue;
             }
-            PlayerInfo target = hittable.AsEntity.PlayerInfo;
-            if (target == me || target.ActiveGolfCartSeat.IsValid())
+            Entity entity = hittable.AsEntity;
+            if (!entity.IsPlayer && !entity.IsGolfCart)
             {
-                continue; // ourselves, our passenger, or someone in a cart
+                continue;
+            }
+            if (entity.IsPlayer ? (entity.PlayerInfo == me || entity.PlayerInfo.ActiveGolfCartSeat.IsValid()) : entity.AsGolfCart.passengers.Contains(me))
+            {
+                continue; // ourselves, our passenger, someone riding a cart (their cart takes the hit), or our own cart
             }
             Vector3 point = overlap[i].ClosestPoint(center);
-            Vector3 direction = Vector3.ProjectOnPlane(target.transform.position - cart.position, Vector3.up);
+            Vector3 direction = Vector3.ProjectOnPlane(hittable.transform.position - cart.position, Vector3.up);
             direction = direction.sqrMagnitude > 0.01f ? direction.normalized : forward;
             hittable.HitWithItem(ItemType.DuelingPistol, me.Inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
                 hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(center),
@@ -376,6 +377,7 @@ internal sealed class ZordView : MonoBehaviour
     {
         float moving = Mathf.Clamp01(Mathf.Abs(speedModel) / 1.2f);
         float absSpeed = Mathf.Abs(speedModel);
+        SwingPose(out float swingTwist, out float swingYaw, out float swingFlat, out float swingRaise);
 
         // Stride clock: a heavy, slow stomp that quickens with speed.
         float freq = Mathf.Clamp(0.8f + 0.12f * absSpeed, 0.8f, 2.2f);
@@ -385,7 +387,7 @@ internal sealed class ZordView : MonoBehaviour
         float lift = Mathf.Clamp(0.04f + 0.03f * absSpeed, 0f, 0.28f) * moving;
         float drop = 0.06f + Mathf.Clamp(0.02f + 0.01f * absSpeed, 0f, 0.1f) * moving;
         float bob = 0.03f * moving * Mathf.Cos(2f * phase);
-        float pelvisY = ZordRig.HipHeight - drop + bob;
+        float pelvisY = ZordRig.HipHeight - drop + bob - 0.25f * swingFlat; // crouches into a low swing
         Rig.Pelvis.localPosition = new Vector3(0f, pelvisY, 0f);
 
         // The pose: chest out, head back, arms flung wide and up, with a shudder.
@@ -394,14 +396,13 @@ internal sealed class ZordView : MonoBehaviour
         pose = Mathf.Min(1f, pose * 1.6f);
         float shake = pose * 1.0f * Mathf.Sin(Time.time * 50f);
 
-        SwingPose(out float swingTwist, out float swingYaw, out float swingFlat, out float swingRaise);
         if (!whooshed && SwingElapsed > 0.3f && SwingElapsed < 0.8f)
         {
             whooshed = true;
             ZordSounds.Play(ZordSounds.Whoosh, Rig.Root.position + Rig.Root.forward * 2f, 1f);
         }
         float lean = Mathf.Clamp(1f + 0.7f * absSpeed, 0f, 8f);
-        Rig.Torso.localRotation = Quaternion.Euler(lean - 8f * pose + 1.5f * moving * Mathf.Sin(2f * phase), 4f * moving * Mathf.Sin(phase) + swingTwist, shake);
+        Rig.Torso.localRotation = Quaternion.Euler(lean + 22f * swingFlat - 8f * pose + 1.5f * moving * Mathf.Sin(2f * phase), 4f * moving * Mathf.Sin(phase) + swingTwist, shake);
         Rig.Head.localRotation = Quaternion.Euler(-lean * 0.7f - 15f * pose, 0f, 0f);
 
         // Legs: two-bone IK so the feet land on the ground under it.
@@ -426,7 +427,7 @@ internal sealed class ZordView : MonoBehaviour
             Rig.ForeArms[side].localRotation = Quaternion.Euler(-Mathf.Max(0f, swing) * 0.4f - 8f * pose, 0f, 0f);
         }
 
-        Rig.Sword.localRotation = Quaternion.Euler(90f * swingFlat, 0f, 0f);
+        Rig.Sword.localRotation = Quaternion.Euler(125f * swingFlat, 0f, 0f); // level, then pitched down so the sweep is low
 
         // Footsteps: one per foot strike.
         int step = Mathf.FloorToInt(phase / Mathf.PI);

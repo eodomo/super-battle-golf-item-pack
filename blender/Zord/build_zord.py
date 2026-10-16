@@ -197,7 +197,7 @@ def build_parts(scene, mats):
         pelvis.append(poly(side([(0.17, 1.70), (0.27, 1.70), (0.22, 1.58)], sx), 0.31, 0.37, BLUE))
         pelvis.append(block((0.30, 0.20, 0.06), (0.30 * sx, 1.38, 0.31), STEEL, 0.015))
         pelvis.append(block((0.20, 0.30, 0.50), (0.50 * sx, 1.38, 0), RED, 0.05))
-        pelvis.append(block((0.08, 0.20, 0.30), (0.56 * sx, 1.36, 0.0), SILVER, 0.02))
+        pelvis.append(block((0.10, 0.20, 0.30), (0.57 * sx, 1.36, 0.0), SILVER, 0.02))
     add("pelvis", (0, 1.30, 0), pelvis)
 
     # ---- Torso ----
