@@ -30,6 +30,7 @@ internal sealed class ZordView : MonoBehaviour
     private Collider[] passengerColliders;
     private Vector3[] passengerColliderLocal;
     private readonly Vector3[] seatShift = new Vector3[2];
+    private bool hasHitBox;
 
     public static ZordView Create(GolfCartInfo cart)
     {
@@ -69,7 +70,7 @@ internal sealed class ZordView : MonoBehaviour
                 }
             }
         }
-        AddBodyHitBox(cart);
+        hasHitBox = AddBodyHitBox(cart);
         lastPosition = cart.transform.position;
         Plugin.Log.LogInfo($"Zord cart ready (scale {scale}, {cartRenderers.Count} cart renderers hidden, {(passengerColliders?.Length ?? 0)} passenger colliders).");
     }
@@ -77,18 +78,20 @@ internal sealed class ZordView : MonoBehaviour
     /// <summary>
     /// The cart's own colliders only cover a golf cart's worth of the Megazord. A box around its body and legs (not the swinging
     /// arms or sword) makes it as big to hit, bump into and run into as it looks. The cart keeps its own center of mass and
-    /// inertia, so it drives and tips exactly as before.
+    /// inertia, so it drives and tips exactly as before. A freshly placed cart is hidden (all its children inactive) until its
+    /// driver gets in, and inactive colliders have no attached body, so this returns false until then and is retried.
     /// </summary>
-    private void AddBodyHitBox(GolfCartInfo cart)
+    private bool AddBodyHitBox(GolfCartInfo cart)
     {
         if (!cart.TryGetComponent(out Rigidbody body))
         {
-            return;
+            return false;
         }
         Collider template = null;
-        foreach (Collider c in cart.GetComponentsInChildren<Collider>(true))
+        foreach (Collider c in cart.GetComponentsInChildren<Collider>(false))
         {
-            if (!c.isTrigger && c.attachedRigidbody == body && (passengerColliders == null || System.Array.IndexOf(passengerColliders, c) < 0))
+            if (!c.isTrigger && c.enabled && c.attachedRigidbody == body
+                && (passengerColliders == null || System.Array.IndexOf(passengerColliders, c) < 0))
             {
                 template = c;
                 break;
@@ -96,7 +99,7 @@ internal sealed class ZordView : MonoBehaviour
         }
         if (template == null)
         {
-            return;
+            return false;
         }
         var bounds = new Bounds();
         bool any = false;
@@ -125,7 +128,7 @@ internal sealed class ZordView : MonoBehaviour
         }
         if (!any)
         {
-            return;
+            return true; // nothing to wrap; don't retry
         }
         // Keep it off the ground (the cart's own colliders and wheels handle that), so driving isn't affected.
         float bottom = Mathf.Max(bounds.min.y, 0.3f);
@@ -141,7 +144,15 @@ internal sealed class ZordView : MonoBehaviour
         body.centerOfMass = centerOfMass;
         body.inertiaTensor = inertia;
         body.inertiaTensorRotation = inertiaRotation;
-        Plugin.Log.LogInfo($"Megazord hit box: {box.size} at {box.center} (layer {hitBox.layer}).");
+        // Live next to the cart's own colliders, so it's hidden and shown with them.
+        Transform holder = template.transform;
+        while (holder.parent != null && holder.parent != cart.transform)
+        {
+            holder = holder.parent;
+        }
+        hitBox.transform.SetParent(holder, worldPositionStays: true);
+        Plugin.Log.LogInfo($"Megazord hit box: {box.size} at {box.center} (layer {hitBox.layer}, under {holder.name}).");
+        return true;
     }
 
     public void StartCry()
@@ -172,6 +183,10 @@ internal sealed class ZordView : MonoBehaviour
         if (dt <= 0f)
         {
             return;
+        }
+        if (!hasHitBox)
+        {
+            hasHitBox = AddBodyHitBox(Cart);
         }
 
         Transform cart = Cart.transform;
