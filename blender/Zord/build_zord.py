@@ -299,7 +299,7 @@ def build_parts(scene, mats):
             for tx in (-1, 1):
                 fore.append(cone_fwd((cx + 0.20 * tx, cy - 0.22, cz + 0.2), 0.30, 0.05, SILVER, pitch=0.5))
         else:
-            fore += sword(x, wy, wz)
+            add("sword", (x, wy, wz), sword(x, wy, wz))
         add("foreArm" + name, (x, 1.88, 0), fore)
 
     # ---- Legs: silver thighs; right = yellow Sabertooth Tiger, left = blue Triceratops ----

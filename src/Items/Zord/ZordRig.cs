@@ -239,7 +239,7 @@ internal sealed class ZordRig
     public const float Thigh = 0.56f, Shin = 0.62f, AnkleHeight = 0.12f, HipHeight = 1.30f;
 
     public Transform Root;
-    public Transform Pelvis, Torso, Head;
+    public Transform Pelvis, Torso, Head, Sword;
     // Index 0 = left (-x), 1 = right (+x).
     public readonly Transform[] UpperArms = new Transform[2], ForeArms = new Transform[2];
     public readonly Transform[] Thighs = new Transform[2], Shins = new Transform[2], Feet = new Transform[2];
@@ -271,6 +271,7 @@ internal sealed class ZordRig
             seat.localPosition = new Vector3(side == 0 ? -0.15f : 0.15f, 0.45f, -0.05f);
             rig.Seats[side] = seat;
         }
+        rig.Sword = Part("sword", rig.ForeArms[1], ZordParts.Pivot("foreArmR"));
         return rig;
     }
 
