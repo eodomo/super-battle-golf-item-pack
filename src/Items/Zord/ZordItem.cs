@@ -29,6 +29,7 @@ internal class ZordItem : CustomItem
 
     internal static ConfigEntry<float> ModelScale;
     internal static ConfigEntry<float> SoundVolume;
+    internal static ConfigEntry<float> MaxSpeed, Acceleration, TurnRate, BallPower;
 
     public ZordItem() => Instance = this;
 
@@ -36,6 +37,10 @@ internal class ZordItem : CustomItem
     {
         ModelScale = Bind("ModelScale", 2f, "How big the Megazord is (1 = about 3 m tall). Everyone should use the same value or the cockpit will sit at different heights.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of its footsteps and war cry (0-1). Local setting.");
+        MaxSpeed = Bind("MaxSpeed", 9f, "Top speed in meters per second (a regular golf cart is much faster; the Megazord is slow and heavy).");
+        Acceleration = Bind("Acceleration", 4.5f, "How quickly it builds up speed (meters per second, per second). Lower is heavier.");
+        TurnRate = Bind("TurnRate", 60f, "Fastest turning rate, degrees per second.");
+        BallPower = Bind("BallPower", 0.85f, "How hard a sword swing hits your own ball (0 to 1, like swing power).");
     }
 
     /// <summary>A small standing Zord for the hand and for the pickup on the ground.</summary>

@@ -121,25 +121,64 @@ internal sealed class ZordView : MonoBehaviour
         Rig.Root.localPosition = new Vector3(0f, -groundOffset, 0f);
         Rig.Root.localRotation = Quaternion.identity;
         Pose(dt, speed / scale);
+        if (!strikeDone && Time.time >= swingStart + StrikeAt)
+        {
+            strikeDone = true;
+            if (DrivenByLocalPlayer())
+            {
+                Strike();
+            }
+        }
     }
 
     private float tiltedFor;
+    private float prevSpeed;
 
-    // A cart that rolled over (a crash) would leave the Megazord lying on its side: the host stands it back up.
     private void FixedUpdate()
     {
-        if (Cart == null || !NetworkServer.active)
+        if (Cart == null || !Cart.TryGetComponent(out Rigidbody body) || body.isKinematic)
         {
             return;
         }
         Transform t = Cart.transform;
+
+        // Weighty movement: a lower top speed, slow build-up and a slow turning rate (whoever simulates the cart does this).
+        if (Cart.TryGetComponent(out GolfCartMovement movement) && movement.authority)
+        {
+            Vector3 v = body.linearVelocity;
+            Vector3 flat = Vector3.ProjectOnPlane(v, t.up);
+            float speed = flat.magnitude;
+            if (speed > prevSpeed)
+            {
+                float cap = Mathf.Min(ZordItem.MaxSpeed.Value, prevSpeed + ZordItem.Acceleration.Value * Time.fixedDeltaTime);
+                if (speed > cap)
+                {
+                    body.linearVelocity = v - flat + flat * (cap / speed);
+                    speed = cap;
+                }
+            }
+            prevSpeed = speed;
+            float maxTurn = ZordItem.TurnRate.Value * Mathf.Deg2Rad;
+            Vector3 w = body.angularVelocity;
+            float yaw = Vector3.Dot(w, t.up);
+            if (Mathf.Abs(yaw) > maxTurn)
+            {
+                body.angularVelocity = w - t.up * yaw + t.up * (Mathf.Sign(yaw) * maxTurn);
+            }
+        }
+
+        // A cart that rolled over (a crash) would leave the Megazord lying on its side: the host stands it back up.
+        if (!NetworkServer.active)
+        {
+            return;
+        }
         if (Vector3.Dot(t.up, Vector3.up) >= 0.5f)
         {
             tiltedFor = 0f;
             return;
         }
         tiltedFor += Time.fixedDeltaTime;
-        if (tiltedFor > 1.2f && Cart.TryGetComponent(out Rigidbody body))
+        if (tiltedFor > 1.2f)
         {
             tiltedFor = 0f;
             body.angularVelocity = Vector3.zero;
@@ -147,6 +186,117 @@ internal sealed class ZordView : MonoBehaviour
             body.position += Vector3.up * 1.5f;
             body.rotation = Quaternion.Euler(0f, t.eulerAngles.y, 0f);
         }
+    }
+
+    // ---- the sword swing ----
+
+    private const float SwingTime = 1.2f, StrikeAt = 0.55f;
+    private float swingStart = -10f;
+    private bool strikeDone = true;
+    private bool whooshed;
+
+    public void StartSwing()
+    {
+        swingStart = Time.time;
+        strikeDone = false;
+        whooshed = false;
+    }
+
+    /// <summary>0..1 through the swing's strike, with the arm angle (degrees, negative = raised) and torso twist.</summary>
+    private void SwingPose(out float arm, out float twist)
+    {
+        float t = Time.time - swingStart;
+        arm = 0f;
+        twist = 0f;
+        if (t < 0f || t > SwingTime)
+        {
+            return;
+        }
+        if (t < 0.45f)
+        {
+            float k = Mathf.SmoothStep(0f, 1f, t / 0.45f);
+            arm = Mathf.Lerp(0f, -80f, k);
+            twist = Mathf.Lerp(0f, 28f, k);
+        }
+        else if (t < 0.65f)
+        {
+            float k = (t - 0.45f) / 0.2f;
+            k = k * k;
+            arm = Mathf.Lerp(-80f, 55f, k);
+            twist = Mathf.Lerp(28f, -22f, k);
+        }
+        else
+        {
+            float k = Mathf.SmoothStep(0f, 1f, (t - 0.65f) / (SwingTime - 0.65f));
+            arm = Mathf.Lerp(55f, 0f, k);
+            twist = Mathf.Lerp(-22f, 0f, k);
+        }
+    }
+
+    private bool DrivenByLocalPlayer()
+    {
+        PlayerInfo local = GameManager.LocalPlayerInfo;
+        if (local == null)
+        {
+            return false;
+        }
+        GolfCartSeat seat = local.ActiveGolfCartSeat;
+        return seat.IsValid() && seat.golfCart == Cart && seat.IsDriver();
+    }
+
+    private static readonly Collider[] overlap = new Collider[64];
+    private static readonly HashSet<Hittable> struck = new();
+
+    /// <summary>The blow lands: players in front are knocked out and the driver's own ball is knocked away.</summary>
+    private void Strike()
+    {
+        PlayerInfo me = GameManager.LocalPlayerInfo;
+        Transform cart = Cart.transform;
+        Vector3 forward = Vector3.ProjectOnPlane(cart.forward, Vector3.up).normalized;
+        Vector3 center = Rig.Root.position + forward * (1.7f * scale) + Vector3.up * (0.9f * scale);
+        float radius = 1.9f * scale;
+        bool hitSomething = false;
+
+        int count = Physics.OverlapSphereNonAlloc(center, radius, overlap, GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
+        struck.Clear();
+        for (int i = 0; i < count; i++)
+        {
+            Hittable hittable = overlap[i].GetComponentInParent<Hittable>();
+            if (hittable == null || !struck.Add(hittable) || !hittable.AsEntity.IsPlayer)
+            {
+                continue;
+            }
+            PlayerInfo target = hittable.AsEntity.PlayerInfo;
+            if (target == me || target.ActiveGolfCartSeat.IsValid())
+            {
+                continue; // ourselves, our passenger, or someone in a cart
+            }
+            Vector3 point = overlap[i].ClosestPoint(center);
+            Vector3 direction = Vector3.ProjectOnPlane(target.transform.position - cart.position, Vector3.up);
+            direction = direction.sqrMagnitude > 0.01f ? direction.normalized : forward;
+            hittable.HitWithItem(ItemType.DuelingPistol, me.Inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
+                hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(center),
+                hittable.ItemSettings.DuelingPistolMinKnockbackDistance * 2f, me.Inventory, isReflected: false, isInSpecialState: false,
+                canHitWithNoUser: true, hitTimestamp: NetworkTime.time);
+            hitSomething = true;
+        }
+
+        // Only the driver's own ball: other players' balls are left alone.
+        GolfBall ball = me.AsGolfer.OwnBall;
+        if (ball != null && ball.TryGetComponent(out Hittable ballHittable)
+            && (ball.transform.position - center).sqrMagnitude < (radius + 0.6f) * (radius + 0.6f))
+        {
+            Vector3 direction = (forward + Vector3.up * 0.5f).normalized;
+            ballHittable.HitWithGolfSwing(ballHittable.transform.InverseTransformPoint(ball.transform.position),
+                ballHittable.transform.InverseTransformPoint(center), direction, false, ZordItem.BallPower.Value, 0f,
+                SwingType.Regular, me.AsGolfer, null);
+            VfxManager.PlayPooledVfxLocalOnly(VfxType.BasicClubHit, ball.transform.position, Quaternion.LookRotation(direction));
+            hitSomething = true;
+        }
+
+        Plugin.Log.LogInfo($"Zord strike: hit={hitSomething}, own ball {(ball != null ? Vector3.Distance(ball.transform.position, center).ToString("F1") + " m away" : "none")}.");
+        CameraModuleController.Shake(GameManager.CameraGameplaySettings.JumboBurgerGiantFormLandingScreenshakeSettings, center, hitSomething ? 1f : 0.5f);
+        ZordSounds.Play(ZordSounds.Step, center, 1f);
     }
 
     private void LateUpdate()
@@ -222,8 +372,14 @@ internal sealed class ZordView : MonoBehaviour
         pose = Mathf.Min(1f, pose * 1.6f);
         float shake = pose * 1.0f * Mathf.Sin(Time.time * 50f);
 
+        SwingPose(out float swingArm, out float swingTwist);
+        if (!whooshed && Time.time - swingStart > 0.42f && Time.time - swingStart < 1f)
+        {
+            whooshed = true;
+            ZordSounds.Play(ZordSounds.Whoosh, Rig.Root.position + Rig.Root.forward * 2f, 1f);
+        }
         float lean = Mathf.Clamp(1f + 0.7f * absSpeed, 0f, 8f);
-        Rig.Torso.localRotation = Quaternion.Euler(lean - 8f * pose + 1.5f * moving * Mathf.Sin(2f * phase), 4f * moving * Mathf.Sin(phase), shake);
+        Rig.Torso.localRotation = Quaternion.Euler(lean - 8f * pose + 1.5f * moving * Mathf.Sin(2f * phase), 4f * moving * Mathf.Sin(phase) + swingTwist, shake);
         Rig.Head.localRotation = Quaternion.Euler(-lean * 0.7f - 15f * pose, 0f, 0f);
 
         // Legs: two-bone IK so the feet land on the ground under it.
@@ -244,7 +400,7 @@ internal sealed class ZordView : MonoBehaviour
             float legPhase = phase + (side == 0 ? Mathf.PI : 0f);
             float swing = 14f * Mathf.Cos(legPhase) * Mathf.Clamp01(absSpeed / 3f);
             float roll = (side == 0 ? -1f : 1f) * 40f * pose; // about z: swings the hanging arm away from the body
-            Rig.UpperArms[side].localRotation = Quaternion.Euler(-swing - 15f * pose, 0f, roll);
+            Rig.UpperArms[side].localRotation = Quaternion.Euler(-swing - 15f * pose + (side == 1 ? swingArm : 0f), 0f, roll);
             Rig.ForeArms[side].localRotation = Quaternion.Euler(-Mathf.Max(0f, swing) * 0.4f - 8f * pose, 0f, 0f);
         }
 
@@ -256,6 +412,8 @@ internal sealed class ZordView : MonoBehaviour
             if (absSpeed > 0.8f)
             {
                 ZordSounds.Play(ZordSounds.Step, Cart.transform.position, 0.8f);
+                CameraModuleController.Shake(GameManager.CameraGameplaySettings.JumboBurgerGiantFormFootstepScreenshakeSettings, Rig.Feet[step & 1].position, 0.2f);
+                VfxManager.PlayPooledVfxLocalOnly(VfxType.GolfCartJumpEnd, Rig.Feet[step & 1].position, Quaternion.identity);
             }
         }
     }

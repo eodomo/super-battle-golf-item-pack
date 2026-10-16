@@ -8,11 +8,12 @@ namespace ItemPack.Items;
 /// </summary>
 internal static class ZordSounds
 {
-    private static FMOD.Sound step, cry;
+    private static FMOD.Sound step, cry, whoosh;
     private static bool loaded;
 
     public static FMOD.Sound Step { get { Load(); return step; } }
     public static FMOD.Sound Cry { get { Load(); return cry; } }
+    public static FMOD.Sound Whoosh { get { Load(); return whoosh; } }
 
     private static void Load()
     {
@@ -24,6 +25,7 @@ internal static class ZordSounds
         CustomItem item = ZordItem.Instance;
         step = ItemAudio.LoadOrSynthesize(item, "zord_step", SynthStep);
         cry = ItemAudio.LoadOrSynthesize(item, "zord_cry", SynthCry);
+        whoosh = ItemAudio.LoadOrSynthesize(item, "zord_swing", SynthWhoosh);
     }
 
     public static void Play(FMOD.Sound sound, Vector3 position, float volume)
@@ -43,6 +45,16 @@ internal static class ZordSounds
         s.Noise(Synth.Decay(0.06f), Synth.Const(0.2f), gain: 0.6f, band: true);
         s.Tone(t => 310f, Synth.Decay(0.03f), gain: 0.25f, harmonics: 3);
         return s.Normalized(0.85f);
+    }
+
+    // A heavy sword whoosh: a swell of band-passed noise with a low rushing tone.
+    private static float[] SynthWhoosh()
+    {
+        var s = new Synth(0.7f, seed: 83);
+        System.Func<float, float> swell = Synth.Env(0.18f, 0.05f, 0.4f);
+        s.Noise(swell, t => Mathf.Lerp(0.1f, 0.5f, Mathf.Clamp01(t / 0.3f)), gain: 0.9f, band: true);
+        s.Tone(t => Mathf.Lerp(90f, 220f, Mathf.Clamp01(t / 0.3f)), swell, gain: 0.5f, harmonics: 2);
+        return s.Normalized(0.8f);
     }
 
     // A war cry: a rising electronic power-up sweep with a metallic clang and a rumble underneath.

@@ -10,13 +10,13 @@ namespace ItemPack.Items;
 public struct ZordState : NetworkMessage
 {
     public uint cartNetId;
-    public bool cry;
+    public byte action;
 }
 
-/// <summary>The driver asks for a cry.</summary>
+/// <summary>The driver asks for a war cry (1) or a sword swing (2).</summary>
 public struct ZordCryRequest : NetworkMessage
 {
-    public bool cry;
+    public byte action;
 }
 
 /// <summary>
@@ -27,25 +27,26 @@ public struct ZordCryRequest : NetworkMessage
 internal static class ZordCarts
 {
     private const double MinToggleInterval = 4.0;
+    private const double SwingInterval = 1.3;
 
     // Host: marked carts (netId -> unused).
     private static readonly Dictionary<uint, bool> serverState = new();
     private static readonly Dictionary<int, double> lastToggle = new();
     // Clients: views per cart, and carts told about before they exist here.
     private static readonly Dictionary<GolfCartInfo, ZordView> views = new();
-    private static readonly Dictionary<uint, (bool cry, float since)> pending = new();
+    private static readonly Dictionary<uint, (byte action, float since)> pending = new();
 
     public static void InitSerializers()
     {
-        Writer<ZordState>.write = (w, m) => { w.WriteUInt(m.cartNetId); w.WriteBool(m.cry); };
-        Reader<ZordState>.read = r => new ZordState { cartNetId = r.ReadUInt(), cry = r.ReadBool() };
-        Writer<ZordCryRequest>.write = (w, m) => w.WriteBool(m.cry);
-        Reader<ZordCryRequest>.read = r => new ZordCryRequest { cry = r.ReadBool() };
+        Writer<ZordState>.write = (w, m) => { w.WriteUInt(m.cartNetId); w.WriteByte(m.action); };
+        Reader<ZordState>.read = r => new ZordState { cartNetId = r.ReadUInt(), action = r.ReadByte() };
+        Writer<ZordCryRequest>.write = (w, m) => w.WriteByte(m.action);
+        Reader<ZordCryRequest>.read = r => new ZordCryRequest { action = r.ReadByte() };
     }
 
     public static void RegisterServerHandlers() => NetworkServer.RegisterHandler<ZordCryRequest>(OnServerCryRequest);
 
-    public static void RegisterClientHandlers() => NetworkClient.ReplaceHandler<ZordState>(msg => Apply(msg.cartNetId, msg.cry));
+    public static void RegisterClientHandlers() => NetworkClient.ReplaceHandler<ZordState>(msg => Apply(msg.cartNetId, msg.action));
 
     public static void ResetServer()
     {
@@ -74,7 +75,7 @@ internal static class ZordCarts
     public static void ServerMark(GolfCartInfo cart)
     {
         serverState[cart.netId] = false;
-        NetworkServer.SendToAll(new ZordState { cartNetId = cart.netId, cry = false });
+        NetworkServer.SendToAll(new ZordState { cartNetId = cart.netId, action = 0 });
         Plugin.Log.LogInfo($"Zord cart {cart.netId} spawned.");
     }
 
@@ -82,7 +83,7 @@ internal static class ZordCarts
     {
         foreach (KeyValuePair<uint, bool> entry in serverState)
         {
-            connection.Send(new ZordState { cartNetId = entry.Key, cry = entry.Value });
+            connection.Send(new ZordState { cartNetId = entry.Key, action = 0 });
         }
     }
 
@@ -93,17 +94,19 @@ internal static class ZordCarts
             return;
         }
         GolfCartSeat seat = player.ActiveGolfCartSeat;
-        if (!request.cry || !seat.IsDriver() || !serverState.ContainsKey(seat.golfCart.netId))
+        if (request.action == 0 || request.action > 2 || !seat.IsDriver() || !serverState.ContainsKey(seat.golfCart.netId))
         {
             return;
         }
-        if (lastToggle.TryGetValue(conn.connectionId, out double last) && Time.timeAsDouble - last < MinToggleInterval)
+        double interval = request.action == 2 ? SwingInterval : MinToggleInterval;
+        int key = conn.connectionId * 4 + request.action;
+        if (lastToggle.TryGetValue(key, out double last) && Time.timeAsDouble - last < interval)
         {
             return;
         }
-        lastToggle[conn.connectionId] = Time.timeAsDouble;
-        Plugin.Log.LogInfo("Zord: war cry.");
-        NetworkServer.SendToAll(new ZordState { cartNetId = seat.golfCart.netId, cry = request.cry });
+        lastToggle[key] = Time.timeAsDouble;
+        Plugin.Log.LogInfo($"Zord: action {request.action}.");
+        NetworkServer.SendToAll(new ZordState { cartNetId = seat.golfCart.netId, action = request.action });
     }
 
     private static void ServerTick()
@@ -131,7 +134,7 @@ internal static class ZordCarts
 
     // ---- clients ----
 
-    private static void Apply(uint netId, bool cry)
+    private static void Apply(uint netId, byte action)
     {
         if (TryFindCart(netId, out GolfCartInfo cart))
         {
@@ -143,21 +146,25 @@ internal static class ZordCarts
                     // Not ready yet (the game's material is still loading): try again next frame.
                     if (!pending.ContainsKey(netId))
                     {
-                        pending[netId] = (cry, Time.time);
+                        pending[netId] = (action, Time.time);
                     }
                     return;
                 }
                 views[cart] = view;
             }
             pending.Remove(netId);
-            if (cry)
+            if (action == 1)
             {
                 view.StartCry();
+            }
+            else if (action == 2)
+            {
+                view.StartSwing();
             }
         }
         else
         {
-            pending[netId] = (cry, Time.time);
+            pending[netId] = (action, Time.time);
         }
     }
 
@@ -176,10 +183,10 @@ internal static class ZordCarts
             List<uint> ids = new(pending.Keys);
             foreach (uint id in ids)
             {
-                (bool cry, float since) = pending[id];
+                (byte action, float since) = pending[id];
                 if (TryFindCart(id, out _))
                 {
-                    Apply(id, cry);
+                    Apply(id, action);
                 }
                 else if (Time.time - since > 15f)
                 {
@@ -188,22 +195,29 @@ internal static class ZordCarts
             }
         }
 
-        // The driver's right click strikes a pose.
+        // The driver's left click swings the sword, right click strikes a pose.
         PlayerInfo local = GameManager.LocalPlayerInfo;
         if (local == null || !NetworkClient.active)
         {
             return;
         }
         GolfCartSeat seat = local.ActiveGolfCartSeat;
-        if (seat.IsDriver() && TryGetView(seat.golfCart, out ZordView zord)
-            && Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
+        if (seat.IsDriver() && TryGetView(seat.golfCart, out _) && Mouse.current != null && Cursor.lockState == CursorLockMode.Locked)
         {
-            Plugin.Log.LogInfo("Zord: war cry requested.");
-            NetworkClient.Send(new ZordCryRequest { cry = true });
+            if (Mouse.current.leftButton.wasPressedThisFrame && Time.time >= nextLocalSwing)
+            {
+                nextLocalSwing = Time.time + (float)SwingInterval;
+                NetworkClient.Send(new ZordCryRequest { action = 2 });
+            }
+            else if (Mouse.current.rightButton.wasPressedThisFrame)
+            {
+                NetworkClient.Send(new ZordCryRequest { action = 1 });
+            }
         }
     }
-}
 
+    private static float nextLocalSwing;
+}
 [HarmonyPatch(typeof(GolfCartInfo), nameof(GolfCartInfo.ServerReserveDriverSeatPostNetworkSpawn))]
 internal static class ZordSpawnPatch
 {
