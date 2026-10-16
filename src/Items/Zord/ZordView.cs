@@ -32,6 +32,9 @@ internal sealed class ZordView : MonoBehaviour
     private readonly Vector3[] seatShift = new Vector3[2];
     private bool hasHitBox;
 
+    /// <summary>The box around the Zord's body (null until it has been added).</summary>
+    public BoxCollider HitBox { get; private set; }
+
     public static ZordView Create(GolfCartInfo cart)
     {
         if (!ZordParts.EnsureReady(ZordItem.Instance.AssetDir))
@@ -141,6 +144,7 @@ internal sealed class ZordView : MonoBehaviour
         box.center = new Vector3(bounds.center.x, (bottom + bounds.max.y) * 0.5f, bounds.center.z);
         box.size = new Vector3(bounds.size.x, bounds.max.y - bottom, bounds.size.z);
         box.sharedMaterial = template.sharedMaterial;
+        HitBox = box;
         body.centerOfMass = centerOfMass;
         body.inertiaTensor = inertia;
         body.inertiaTensorRotation = inertiaRotation;

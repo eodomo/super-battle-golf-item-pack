@@ -315,6 +315,43 @@ internal static class ZordSeatPatches
     }
 }
 
+[HarmonyPatch(typeof(GolfCartInfo), nameof(GolfCartInfo.GetExitData))]
+internal static class ZordExitPatch
+{
+    private const float Margin = 0.8f;
+
+    // The cart's normal exit spots are a golf cart's width from the middle, inside the Zord's body box. Standing a player
+    // there made the game shove them through the ground, so move the spot to just outside the box.
+    private static void Postfix(GolfCartInfo __instance, ref Vector3 worldPosition)
+    {
+        if (!ZordCarts.TryGetView(__instance, out ZordView view) || view.HitBox == null)
+        {
+            return;
+        }
+        BoxCollider box = view.HitBox;
+        Transform cart = __instance.transform;
+        Vector3 local = cart.InverseTransformPoint(worldPosition);
+        Vector3 center = cart.InverseTransformPoint(box.transform.TransformPoint(box.center));
+        Vector3 half = box.size * 0.5f;
+        float dx = local.x - center.x, dz = local.z - center.z; // exit spot relative to the box center, in cart space
+        if (Mathf.Abs(dx) >= half.x + Margin || Mathf.Abs(dz) >= half.z + Margin)
+        {
+            return;
+        }
+        // Leave by whichever face is closest.
+        float toSide = half.x + Margin - Mathf.Abs(dx), toEnd = half.z + Margin - Mathf.Abs(dz);
+        if (toSide <= toEnd)
+        {
+            local.x += (dx >= 0f ? 1f : -1f) * toSide;
+        }
+        else
+        {
+            local.z += (dz >= 0f ? 1f : -1f) * toEnd;
+        }
+        worldPosition = cart.TransformPoint(local);
+    }
+}
+
 [HarmonyPatch(typeof(PlayerMovement), "LateUpdate")]
 internal static class ZordRidersPatch
 {
