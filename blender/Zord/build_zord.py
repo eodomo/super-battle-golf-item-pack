@@ -278,9 +278,11 @@ def build_parts(scene, mats):
         a = math.radians(64)
         bend(fore, elbow, a)
         wy, wz = 1.88 - 0.66 * math.cos(a), 0.66 * math.sin(a)
-        fore.append(block((0.28, 0.24, 0.30), (x, wy, wz), BLACK, 0.05))                            # fist
+        # A fist closed around a vertical grip: the palm behind it, four finger bars wrapped across its front, a thumb on top.
+        fore.append(block((0.30, 0.40, 0.14), (x, wy - 0.02, wz - 0.11), BLACK, 0.05))               # palm
         for i in range(4):
-            fore.append(block((0.05, 0.22, 0.06), (x - 0.095 + 0.063 * i, wy - 0.01, wz + 0.17), BLACK, 0.012))  # fingers
+            fore.append(block((0.31, 0.075, 0.17), (x, wy - 0.17 + 0.105 * i, wz + 0.07), BLACK, 0.025))  # fingers
+        fore.append(block((0.09, 0.09, 0.20), (x - 0.15 * sx, wy + 0.16, wz + 0.03), BLACK, 0.03))   # thumb
         fore.append(block((0.30, 0.06, 0.32), (x, wy + 0.14, wz), YELLOW, 0.012))                    # cuff
         if name == "L":
             # The black Mastodon shield: a pointed shield with a red edge, a yellow rim and silver tusks.
