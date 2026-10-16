@@ -55,6 +55,7 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new LightsaberItem(SaberColor.Green));
         ItemCatalog.Add(new LightsaberItem(SaberColor.Red));
         ItemCatalog.Add(new WebSlingerItem());
+        ItemCatalog.Add(new ZordItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)

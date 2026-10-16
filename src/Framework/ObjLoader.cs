@@ -91,7 +91,7 @@ internal static class ObjLoader
         return mesh;
     }
 
-    private static Dictionary<string, Color> LoadMtl(string path)
+    internal static Dictionary<string, Color> LoadMtl(string path)
     {
         var colors = new Dictionary<string, Color>();
         if (!File.Exists(path))
