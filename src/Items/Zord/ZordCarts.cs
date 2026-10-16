@@ -135,16 +135,21 @@ internal static class ZordCarts
     {
         if (TryFindCart(netId, out GolfCartInfo cart))
         {
-            pending.Remove(netId);
             if (!views.TryGetValue(cart, out ZordView view) || view == null)
             {
                 view = ZordView.Create(cart);
                 if (view == null)
                 {
+                    // Not ready yet (the game's material is still loading): try again next frame.
+                    if (!pending.ContainsKey(netId))
+                    {
+                        pending[netId] = (cry, Time.time);
+                    }
                     return;
                 }
                 views[cart] = view;
             }
+            pending.Remove(netId);
             if (cry)
             {
                 view.StartCry();

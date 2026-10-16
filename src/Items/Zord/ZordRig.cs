@@ -3,31 +3,68 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 
 namespace ItemPack.Items;
 
 /// <summary>
-/// Zord's body as separate parts (zord.obj has one group per part, with a #pivot comment for the joint it turns
-/// about), loaded once and assembled into a posable hierarchy for every Zord on the course.
+/// The Megazord's body as separate parts (zord.obj has one group per part, with a #pivot comment for the joint it turns
+/// about, and UVs into one hand-painted atlas, zord_tex.png), loaded once and assembled into a posable hierarchy for
+/// every Megazord on the course. Its material is a clone of a game cosmetic's toon material, so lighting and shading
+/// match the rest of the game.
 /// </summary>
 internal static class ZordParts
 {
-    // Same order as the Blender script's material list.
-    private static readonly string[] MaterialOrder = { "Red", "Black", "Blue", "Yellow", "Pink", "Silver", "Gold", "Visor", "White" };
+    // A textured cosmetic the game itself ships: its material is what we clone for the painted atlas.
+    private const string TemplateSource = "Assets/Prefabs/Cosmetics/Clubs/Metadata/Katana.asset";
 
     private static readonly Dictionary<string, Mesh> meshes = new();
     private static readonly Dictionary<string, Vector3> pivots = new();
-    private static ModelAsset materialSource;
-    private static bool loaded;
+    private static Material material;
+    private static Material[] materialArray;
+    private static Material template;
+    private static bool templateRequested, templateFailed, loaded;
 
-    public static Material[] Materials => materialSource?.Materials;
+    public static Material[] Materials => materialArray;
 
     public static Vector3 Pivot(string part) => pivots.TryGetValue(part, out Vector3 p) ? p : Vector3.zero;
 
     public static Mesh MeshOf(string part) => meshes.TryGetValue(part, out Mesh m) ? m : null;
 
-    /// <summary>Loads the meshes (once) and builds the materials from the game's toon shader (needs a template material).</summary>
+    /// <summary>Starts loading the game's textured toon material (needs Addressables to be ready).</summary>
+    public static void Prebuild()
+    {
+        if (templateRequested)
+        {
+            return;
+        }
+        templateRequested = true;
+        try
+        {
+            Addressables.LoadAssetAsync<PlayerCosmeticsMetadata>(TemplateSource).Completed += metaHandle =>
+            {
+                if (metaHandle.Result == null)
+                {
+                    templateFailed = true;
+                    return;
+                }
+                Addressables.LoadAssetAsync<GameObject>(metaHandle.Result.model.RuntimeKey).Completed += prefabHandle =>
+                {
+                    MeshRenderer renderer = prefabHandle.Result != null ? prefabHandle.Result.GetComponentInChildren<MeshRenderer>() : null;
+                    template = renderer != null ? renderer.sharedMaterial : null;
+                    templateFailed = template == null;
+                };
+            };
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogError($"Megazord: template material request failed: {e}");
+            templateFailed = true;
+        }
+    }
+
+    /// <summary>Loads the meshes and texture (once) and builds the material; false until the template material is ready.</summary>
     public static bool EnsureReady(string directory)
     {
         if (!loaded)
@@ -35,45 +72,77 @@ internal static class ZordParts
             loaded = true;
             try
             {
-                Load(Path.Combine(directory, "zord.obj"), Path.Combine(directory, "zord.mtl"));
+                Load(Path.Combine(directory, "zord.obj"));
             }
             catch (Exception e)
             {
-                Plugin.Log.LogError($"Failed to load the Zord model from {directory}: {e}");
+                Plugin.Log.LogError($"Failed to load the Megazord model from {directory}: {e}");
             }
         }
         if (meshes.Count == 0)
         {
             return false;
         }
-        if (materialSource?.Materials == null && ModelAsset.SharedTemplate != null)
+        if (material == null)
         {
-            materialSource.InitMaterials(ModelAsset.SharedTemplate);
+            Material source = template != null ? template : (templateFailed ? ModelAsset.SharedTemplate : null);
+            if (source == null)
+            {
+                return false;
+            }
+            material = BuildMaterial(source, Path.Combine(directory, "zord_tex.png"));
+            materialArray = new[] { material };
         }
-        return materialSource?.Materials != null;
+        return true;
     }
 
-    private static void Load(string objPath, string mtlPath)
+    private static Material BuildMaterial(Material source, string texturePath)
     {
-        Dictionary<string, Color> mtl = ObjLoader.LoadMtl(mtlPath);
-        var colors = new Color[MaterialOrder.Length];
-        for (int i = 0; i < colors.Length; i++)
+        var texture = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: true)
         {
-            colors[i] = mtl.TryGetValue(MaterialOrder[i], out Color c) ? c : Color.magenta;
+            name = "zord_tex",
+            filterMode = FilterMode.Bilinear,
+            anisoLevel = 4,
+            wrapMode = TextureWrapMode.Clamp,
+            hideFlags = HideFlags.DontUnloadUnusedAsset,
+        };
+        if (!texture.LoadImage(File.ReadAllBytes(texturePath)))
+        {
+            Plugin.Log.LogError($"Could not read {texturePath}");
         }
-        materialSource = ModelAsset.FromColors("zord", colors);
+        var mat = new Material(source) { name = "Megazord", hideFlags = HideFlags.DontUnloadUnusedAsset };
+        foreach (string prop in new[] { "_MainTex", "_BaseMap", "_Albedo", "_AlbedoMap" })
+        {
+            if (mat.HasProperty(prop))
+            {
+                mat.SetTexture(prop, texture);
+            }
+        }
+        foreach (string prop in new[] { "_Color", "_BaseColor" })
+        {
+            if (mat.HasProperty(prop))
+            {
+                mat.SetColor(prop, Color.white);
+            }
+        }
+        Plugin.Log.LogInfo($"Megazord material built from '{source.name}' (shader {source.shader.name}), texture {texture.width}x{texture.height}.");
+        return mat;
+    }
 
+    private static void Load(string objPath)
+    {
         var positions = new List<Vector3>();
         var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
         var rawPivots = new Dictionary<string, Vector3>();
 
         string partName = null;
         Vector3 partPivot = Vector3.zero;
         List<Vector3> vertices = null;
         List<Vector3> vertexNormals = null;
-        Dictionary<(int, int), int> lookup = null;
-        List<int>[] triangles = null;
-        int material = 0;
+        List<Vector2> vertexUvs = null;
+        Dictionary<(int, int, int), int> lookup = null;
+        List<int> triangles = null;
 
         void Finish()
         {
@@ -86,11 +155,8 @@ internal static class ZordParts
             mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
             mesh.SetVertices(vertices);
             mesh.SetNormals(vertexNormals);
-            mesh.subMeshCount = triangles.Length;
-            for (int i = 0; i < triangles.Length; i++)
-            {
-                mesh.SetTriangles(triangles[i], i);
-            }
+            mesh.SetUVs(0, vertexUvs);
+            mesh.SetTriangles(triangles, 0);
             mesh.RecalculateBounds();
             meshes[partName] = mesh;
             pivots[partName] = partPivot;
@@ -121,12 +187,9 @@ internal static class ZordParts
                     partPivot = rawPivots.TryGetValue(partName, out Vector3 pv) ? pv : Vector3.zero;
                     vertices = new List<Vector3>();
                     vertexNormals = new List<Vector3>();
-                    lookup = new Dictionary<(int, int), int>();
-                    triangles = new List<int>[MaterialOrder.Length];
-                    for (int i = 0; i < triangles.Length; i++)
-                    {
-                        triangles[i] = new List<int>();
-                    }
+                    vertexUvs = new List<Vector2>();
+                    lookup = new Dictionary<(int, int, int), int>();
+                    triangles = new List<int>();
                     break;
                 case "v":
                     positions.Add(new Vector3(-Parse(parts[1]), Parse(parts[2]), Parse(parts[3])));
@@ -134,12 +197,8 @@ internal static class ZordParts
                 case "vn":
                     normals.Add(new Vector3(-Parse(parts[1]), Parse(parts[2]), Parse(parts[3])));
                     break;
-                case "usemtl":
-                    material = Array.IndexOf(MaterialOrder, parts[1]);
-                    if (material < 0)
-                    {
-                        material = 0;
-                    }
+                case "vt":
+                    uvs.Add(new Vector2(Parse(parts[1]), Parse(parts[2])));
                     break;
                 case "f":
                     var corner = new int[3];
@@ -147,25 +206,27 @@ internal static class ZordParts
                     {
                         string[] idx = parts[c + 1].Split('/');
                         int vi = int.Parse(idx[0], CultureInfo.InvariantCulture) - 1;
+                        int ti = idx.Length > 1 && idx[1].Length > 0 ? int.Parse(idx[1], CultureInfo.InvariantCulture) - 1 : -1;
                         int ni = idx.Length > 2 && idx[2].Length > 0 ? int.Parse(idx[2], CultureInfo.InvariantCulture) - 1 : -1;
-                        if (!lookup.TryGetValue((vi, ni), out int index))
+                        if (!lookup.TryGetValue((vi, ti, ni), out int index))
                         {
                             index = vertices.Count;
                             vertices.Add(positions[vi] - partPivot);
                             vertexNormals.Add(ni >= 0 ? normals[ni] : Vector3.up);
-                            lookup[(vi, ni)] = index;
+                            vertexUvs.Add(ti >= 0 ? uvs[ti] : Vector2.zero);
+                            lookup[(vi, ti, ni)] = index;
                         }
                         corner[c] = index;
                     }
                     // Mirroring X flips the winding.
-                    triangles[material].Add(corner[0]);
-                    triangles[material].Add(corner[2]);
-                    triangles[material].Add(corner[1]);
+                    triangles.Add(corner[0]);
+                    triangles.Add(corner[2]);
+                    triangles.Add(corner[1]);
                     break;
             }
         }
         Finish();
-        Plugin.Log.LogInfo($"Loaded Zord: {meshes.Count} parts.");
+        Plugin.Log.LogInfo($"Loaded Megazord: {meshes.Count} parts.");
     }
 
     private static float Parse(string s) => float.Parse(s, CultureInfo.InvariantCulture);

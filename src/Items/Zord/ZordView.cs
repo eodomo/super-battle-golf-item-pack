@@ -245,7 +245,7 @@ internal sealed class ZordView : MonoBehaviour
             float swing = 14f * Mathf.Cos(legPhase) * Mathf.Clamp01(absSpeed / 3f);
             float roll = (side == 0 ? -1f : 1f) * 40f * pose; // about z: swings the hanging arm away from the body
             Rig.UpperArms[side].localRotation = Quaternion.Euler(-swing - 15f * pose, 0f, roll);
-            Rig.ForeArms[side].localRotation = Quaternion.Euler(-12f - Mathf.Max(0f, swing) * 0.6f, 0f, 0f);
+            Rig.ForeArms[side].localRotation = Quaternion.Euler(-Mathf.Max(0f, swing) * 0.4f - 8f * pose, 0f, 0f);
         }
 
         // Footsteps: one per foot strike.
