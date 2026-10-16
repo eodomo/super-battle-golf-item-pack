@@ -299,7 +299,7 @@ internal sealed class ZordView : MonoBehaviour
             direction = direction.sqrMagnitude > 0.01f ? direction.normalized : forward;
             hittable.HitWithItem(ItemType.DuelingPistol, me.Inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
                 hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(center),
-                hittable.ItemSettings.DuelingPistolMinKnockbackDistance * 3f, me.Inventory, isReflected: false, isInSpecialState: false,
+                hittable.ItemSettings.DuelingPistolMinKnockbackDistance * 1.5f, me.Inventory, isReflected: false, isInSpecialState: false,
                 canHitWithNoUser: true, hitTimestamp: NetworkTime.time);
             if (entity.IsGolfCart)
             {

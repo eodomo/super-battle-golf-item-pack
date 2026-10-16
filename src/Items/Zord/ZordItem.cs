@@ -41,7 +41,7 @@ internal class ZordItem : CustomItem
         Acceleration = Bind("Acceleration", 4.5f, "How quickly it builds up speed (meters per second, per second). Lower is heavier.");
         TurnRate = Bind("TurnRate", 60f, "Fastest turning rate, degrees per second.");
         BallPower = Bind("BallPower", 0.85f, "How hard a sword swing hits your own ball (0 to 1, like swing power).");
-        CartKnockback = Bind("CartKnockback", 26f, "How fast a sword hit sends a golf cart flying, in meters per second.");
+        CartKnockback = Bind("CartKnockback", 13f, "How fast a sword hit sends a golf cart flying, in meters per second.");
     }
 
     /// <summary>A small standing Zord for the hand and for the pickup on the ground.</summary>
