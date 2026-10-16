@@ -358,3 +358,23 @@ internal static class ZordRidersPatch
         hidden.Remove(movement);
     }
 }
+
+[HarmonyPatch(typeof(PlayerInfo))]
+internal static class ZordNoHornPatches
+{
+    // The Megazord has no horn: left click is the sword, so the cart's honk is switched off while riding one.
+    private static bool InZord(PlayerInfo player)
+    {
+        GolfCartSeat seat = player.ActiveGolfCartSeat;
+        return seat.IsValid() && ZordCarts.IsZord(seat.golfCart);
+    }
+
+    [HarmonyPrefix, HarmonyPatch(nameof(PlayerInfo.HonkGolfCart))]
+    private static bool Honk(PlayerInfo __instance) => !InZord(__instance);
+
+    [HarmonyPrefix, HarmonyPatch(nameof(PlayerInfo.StartSpecialGolfCartHonk))]
+    private static bool StartSpecial(PlayerInfo __instance) => !InZord(__instance);
+
+    [HarmonyPrefix, HarmonyPatch(nameof(PlayerInfo.EndSpecialGolfCartHonk))]
+    private static bool EndSpecial(PlayerInfo __instance) => !InZord(__instance);
+}

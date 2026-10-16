@@ -202,12 +202,17 @@ internal sealed class ZordView : MonoBehaviour
         whooshed = false;
     }
 
-    /// <summary>0..1 through the swing's strike, with the arm angle (degrees, negative = raised) and torso twist.</summary>
-    private void SwingPose(out float arm, out float twist)
+    private const float BladeRoll = 90f; // how far the forearm turns to lay the blade flat
+    private static readonly Vector3 ForearmAxis = new Vector3(0f, -Mathf.Cos(64f * Mathf.Deg2Rad), Mathf.Sin(64f * Mathf.Deg2Rad));
+
+    /// <summary>
+    /// A horizontal slash: the blade is turned flat, the body winds up to the right and the whole torso whips round to the
+    /// left. Outputs the torso twist (degrees), how flat the blade lies (0..1) and how high the arm is raised (degrees).
+    /// </summary>
+    private void SwingPose(out float twist, out float flat, out float raise)
     {
         float t = Time.time - swingStart;
-        arm = 0f;
-        twist = 0f;
+        twist = flat = raise = 0f;
         if (t < 0f || t > SwingTime)
         {
             return;
@@ -215,21 +220,24 @@ internal sealed class ZordView : MonoBehaviour
         if (t < 0.45f)
         {
             float k = Mathf.SmoothStep(0f, 1f, t / 0.45f);
-            arm = Mathf.Lerp(0f, -80f, k);
-            twist = Mathf.Lerp(0f, 28f, k);
+            twist = Mathf.Lerp(0f, 80f, k);
+            flat = Mathf.SmoothStep(0f, 1f, t / 0.3f);
+            raise = Mathf.Lerp(0f, -35f, k);
         }
         else if (t < 0.65f)
         {
             float k = (t - 0.45f) / 0.2f;
             k = k * k;
-            arm = Mathf.Lerp(-80f, 55f, k);
-            twist = Mathf.Lerp(28f, -22f, k);
+            twist = Mathf.Lerp(80f, -85f, k);
+            flat = 1f;
+            raise = -35f;
         }
         else
         {
             float k = Mathf.SmoothStep(0f, 1f, (t - 0.65f) / (SwingTime - 0.65f));
-            arm = Mathf.Lerp(55f, 0f, k);
-            twist = Mathf.Lerp(-22f, 0f, k);
+            twist = Mathf.Lerp(-85f, 0f, k);
+            flat = 1f - k;
+            raise = Mathf.Lerp(-35f, 0f, k);
         }
     }
 
@@ -253,8 +261,8 @@ internal sealed class ZordView : MonoBehaviour
         PlayerInfo me = GameManager.LocalPlayerInfo;
         Transform cart = Cart.transform;
         Vector3 forward = Vector3.ProjectOnPlane(cart.forward, Vector3.up).normalized;
-        Vector3 center = Rig.Root.position + forward * (1.7f * scale) + Vector3.up * (0.9f * scale);
-        float radius = 1.9f * scale;
+        Vector3 center = Rig.Root.position + forward * (1.3f * scale) + Vector3.up * (1.0f * scale);
+        float radius = 2.3f * scale;
         bool hitSomething = false;
 
         int count = Physics.OverlapSphereNonAlloc(center, radius, overlap, GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
@@ -372,7 +380,7 @@ internal sealed class ZordView : MonoBehaviour
         pose = Mathf.Min(1f, pose * 1.6f);
         float shake = pose * 1.0f * Mathf.Sin(Time.time * 50f);
 
-        SwingPose(out float swingArm, out float swingTwist);
+        SwingPose(out float swingTwist, out float swingFlat, out float swingRaise);
         if (!whooshed && Time.time - swingStart > 0.42f && Time.time - swingStart < 1f)
         {
             whooshed = true;
@@ -400,8 +408,12 @@ internal sealed class ZordView : MonoBehaviour
             float legPhase = phase + (side == 0 ? Mathf.PI : 0f);
             float swing = 14f * Mathf.Cos(legPhase) * Mathf.Clamp01(absSpeed / 3f);
             float roll = (side == 0 ? -1f : 1f) * 40f * pose; // about z: swings the hanging arm away from the body
-            Rig.UpperArms[side].localRotation = Quaternion.Euler(-swing - 15f * pose + (side == 1 ? swingArm : 0f), 0f, roll);
+            Rig.UpperArms[side].localRotation = Quaternion.Euler(-swing - 15f * pose + (side == 1 ? swingRaise : 0f), 0f, roll);
             Rig.ForeArms[side].localRotation = Quaternion.Euler(-Mathf.Max(0f, swing) * 0.4f - 8f * pose, 0f, 0f);
+            if (side == 1 && swingFlat > 0f)
+            {
+                Rig.ForeArms[side].localRotation = Quaternion.AngleAxis(BladeRoll * swingFlat, ForearmAxis) * Rig.ForeArms[side].localRotation;
+            }
         }
 
         // Footsteps: one per foot strike.
