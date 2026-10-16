@@ -20,6 +20,8 @@ internal class DirtBlocksItem : CustomItem
     public override int Id => 106;
     public override string Key => "DirtBlocks";
     public override string DisplayName => "Dirt Blocks";
+    // Walls and traps around the pack.
+    public override PoolWeights BoxWeights => new(close: 5, medium: 4, far: 2, veryFar: 0, aheadOfBall: 0, drivingRange: 20);
     // Held in one hand like the coffee cup.
     public override ItemType TemplateItem => ItemType.Coffee;
     public override EquipmentType TemplateEquipment => EquipmentType.CoffeeMug;

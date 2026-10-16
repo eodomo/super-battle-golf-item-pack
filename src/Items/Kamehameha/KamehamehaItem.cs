@@ -18,6 +18,8 @@ internal class KamehamehaItem : CustomItem
     public override int Id => 105;
     public override string Key => "Kamehameha";
     public override string DisplayName => "Kamehameha";
+    // Mid-range beam.
+    public override PoolWeights BoxWeights => new(close: 4, medium: 5, far: 2, veryFar: 0, aheadOfBall: 0, drivingRange: 20);
     // The flash camera is held with both hands in front of the chest: close enough to cupped hands.
     public override ItemType TemplateItem => ItemType.FlashCamera;
     public override EquipmentType TemplateEquipment => EquipmentType.FlashCamera;

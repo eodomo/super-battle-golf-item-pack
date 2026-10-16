@@ -16,6 +16,8 @@ internal class BlueShellItem : CustomItem
     public override int Id => 107;
     public override string Key => "BlueShell";
     public override string DisplayName => "Blue Shell";
+    // Mario Kart's back-of-the-pack item: hits the leader.
+    public override PoolWeights BoxWeights => new(close: 0, medium: 0, far: 4, veryFar: 6, aheadOfBall: 0, drivingRange: 5);
     // Held and thrown one-handed like the freeze bomb.
     public override ItemType TemplateItem => ItemType.FreezeBomb;
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;

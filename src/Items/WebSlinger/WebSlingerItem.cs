@@ -21,6 +21,8 @@ internal class WebSlingerItem : CustomItem
     public override int Id => 112;
     public override string Key => "WebSlinger";
     public override string DisplayName => "Web Slinger";
+    // Mobility: helps you catch up or get back to your ball.
+    public override PoolWeights BoxWeights => new(close: 2, medium: 5, far: 6, veryFar: 6, aheadOfBall: 10, drivingRange: 20);
     // Held in one hand like the coffee cup.
     public override ItemType TemplateItem => ItemType.Coffee;
     public override EquipmentType TemplateEquipment => EquipmentType.CoffeeMug;

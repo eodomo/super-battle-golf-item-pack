@@ -24,6 +24,8 @@ internal class PortalGunItem : CustomItem
     public override int Id => 101;
     public override string Key => "PortalGun";
     public override string DisplayName => "Portal Gun";
+    // Mobility: helps you catch up or get back to your ball.
+    public override PoolWeights BoxWeights => new(close: 2, medium: 5, far: 6, veryFar: 5, aheadOfBall: 5, drivingRange: 20);
     // The dueling pistol gives us a one-handed gun hold and a shot animation.
     public override ItemType TemplateItem => ItemType.DuelingPistol;
     public override EquipmentType TemplateEquipment => EquipmentType.DuelingPistol;

@@ -83,7 +83,13 @@ internal static class AimingReticlePatch
 internal static class ItemBoxPatch
 {
     // Runs on the host when an item box is opened. Pack items are in the pools themselves (see ItemBoxes).
-    private static void Postfix(ref ItemType __result) => __result = ItemBoxes.OnRolled(__result);
+    private static void Postfix(ItemSpawnerSettings __instance, PlayerInfo player, ref ItemType __result)
+    {
+        __result = ItemBoxes.OnRolled(__result);
+        // So the odds can be checked after a real match (BepInEx\LogOutput.log).
+        ItemPool pool = __instance.GetItemPoolFor(player);
+        Plugin.Log.LogInfo($"Item box: {player.PlayerId.PlayerName} got {__result} from {(pool != null ? pool.name : "?")}");
+    }
 }
 
 [HarmonyPatch(typeof(BNetworkManager))]

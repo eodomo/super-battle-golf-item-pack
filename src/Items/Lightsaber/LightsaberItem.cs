@@ -51,6 +51,8 @@ internal class LightsaberItem : CustomItem
     public override int Id => FirstId + (int)Variant;
     public override string Key => "Lightsaber";
     public override string DisplayName => "Lightsaber";
+    // Melee: only useful up close.
+    public override PoolWeights BoxWeights => new(close: 6, medium: 4, far: 0, veryFar: 0, aheadOfBall: 0, drivingRange: 20);
     public override string MenuName => $"Lightsaber ({Variant})";
     public override ItemType TemplateItem => ItemType.FreezeBomb;
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;

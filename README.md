@@ -35,7 +35,7 @@ The zip includes [BepInEx 5](https://github.com/BepInEx/BepInEx) (the mod loader
 - **Still stuck:** open an issue on this repo and attach `BepInEx\LogOutput.log`.
 
 ## Settings
-`BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: how often item boxes give it, uses per pickup, held model size, and item-specific settings. Item box odds use the host's settings. The pack's items are about as rare as the game's best ones and, like those, mostly go to players who are behind. The host can adjust them per item in the match setup's item probability sliders, like the game's items; `ItemBoxFrequency` (1 = normal, 0 = never) sets their starting values.
+`BepInEx\config\eodomo.superbattlegolf.itempack.cfg` is created on first launch. It has one section per item: how often item boxes give it, uses per pickup, held model size, and item-specific settings. Item box odds use the host's settings. The pack's items make up about 30% of what item boxes give, each in the pools where it's useful (fighting items near the lead, rides and long-range items further back). The host can adjust them per item in the match setup's item probability sliders, like the game's items; `ItemBoxFrequency` (1 = normal, 0 = never) sets their starting values.
 
 ## Build
 Requires the .NET SDK (8 or 9) and the game with BepInEx installed (the build references the game's DLLs; none are committed).

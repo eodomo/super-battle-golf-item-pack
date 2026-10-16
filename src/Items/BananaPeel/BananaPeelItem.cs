@@ -16,11 +16,11 @@ internal class BananaPeelItem : CustomItem
     public override int Id => 100;
     public override string Key => "BananaPeel";
     public override string DisplayName => "Banana Peel";
+    // A trap: most useful in the crowd near the lead.
+    public override PoolWeights BoxWeights => new(close: 10, medium: 5, far: 0, veryFar: 0, aheadOfBall: 0, drivingRange: 20);
     // The landmine gives us hold/plant/toss animations and placement-style use rules.
     public override ItemType TemplateItem => ItemType.Landmine;
     public override string AssetName => "banana_peel";
-    // The one everyday item in the pack.
-    public override ItemRarity Rarity => ItemRarity.Common;
 
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.8f;

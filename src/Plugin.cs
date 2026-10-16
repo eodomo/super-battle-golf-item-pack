@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.7.0";
+    public const string Version = "0.8.0";
 
     internal static ManualLogSource Log;
 
@@ -82,7 +82,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 8;
+        const int ConfigVersion = 9;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -165,6 +165,11 @@ public class Plugin : BaseUnityPlugin
         {
             // The Megazord's cart knockback was halved.
             ZordItem.CartKnockback.Value = (float)ZordItem.CartKnockback.DefaultValue;
+        }
+        if (stored.Value < 9)
+        {
+            // The steam whistle now goes after the opponent you aim at, shown with the lock-on marker.
+            SteamWhistleItem.TargetMode.Value = (WhistleTargetMode)SteamWhistleItem.TargetMode.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

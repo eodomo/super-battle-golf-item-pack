@@ -68,15 +68,15 @@ internal abstract class CustomItem
     public EquipmentType Equipment => (EquipmentType)Id;
     public ModelAsset Model { get; private set; }
 
-    /// <summary>How often item boxes give this item, relative to its rarity's default (1 = default, 0 = never).</summary>
+    /// <summary>How often item boxes give this item, relative to its default <see cref="BoxWeights"/> (1 = default, 0 = never).</summary>
     public ConfigEntry<float> ItemBoxFrequency { get; private set; }
     public ConfigEntry<int> UsesPerPickup { get; private set; }
 
     /// <summary>
-    /// The item's default item box odds. Powerful items are as rare as the game's best ones (orbital laser,
-    /// thunderstorm) and, like those, only show up for players who are behind. See <see cref="ItemBoxes"/>.
+    /// The item's default item box weights, per pool (vanilla pools total 100), by what the item is for:
+    /// fighting items near the lead, mobility and long-range strikes further back. See <see cref="ItemBoxes"/>.
     /// </summary>
-    public virtual ItemRarity Rarity => ItemRarity.Powerful;
+    public abstract PoolWeights BoxWeights { get; }
 
     /// <summary>
     /// Whether the item has its own entry in the item box pools (and the setup menu's sliders). Items that come in
@@ -157,10 +157,15 @@ internal abstract class CustomItem
     public virtual void OnGUI() { }
 }
 
-internal enum ItemRarity
+/// <summary>Default weights of an item in each item box pool (see <see cref="ItemBoxes"/>).</summary>
+internal readonly struct PoolWeights(float close, float medium, float far, float veryFar, float aheadOfBall, float drivingRange)
 {
-    /// <summary>As common as the landmine near the lead and in the Driving Range, and now and then further back.</summary>
-    Common,
-    /// <summary>As rare as the game's best items, and never for the player in the lead.</summary>
-    Powerful,
+    public float Close { get; } = close;
+    public float Medium { get; } = medium;
+    public float Far { get; } = far;
+    public float VeryFar { get; } = veryFar;
+    /// <summary>For players who walked past their own ball (vanilla: coffee and spring boots only).</summary>
+    public float AheadOfBall { get; } = aheadOfBall;
+    /// <summary>The Driving Range's pool totals 315 (20 for most vanilla items).</summary>
+    public float DrivingRange { get; } = drivingRange;
 }

@@ -6,7 +6,7 @@ The README keeps the items a surprise. Everything is here instead.
 |---|---|
 | **Banana Peel** | Use to drop a peel at your feet; hold aim + use to throw one. Anyone who runs over a peel slips: a leg-sweep knockout that launches them forward (shields and knockout immunity still protect you). You can't slip on your own peel for the first 2 seconds. One peel per pickup. |
 | **Portal Gun** | Left click places a blue portal where you're looking, right click an orange one, like Portal (with Portal's two-color crosshair). Each player has their own pair. You can see through linked portals, and players, balls, carts and items that go in come out the other portal with their momentum. Like in Portal you can stand halfway in one, with your other half poking out of the other portal; you only go over once your middle passes through. Dueling pistol and elephant gun shots, rockets, freeze bombs and boogie bombs go through linked portals too, so you can shoot someone on the other side. Portals last until replaced or until the hole ends. Shoot as much as you like: the gun is used up once you've placed both a blue and an orange portal. Each shot has a wooshy sound everyone can hear. |
-| **Steam Whistle** | Blow it and a winged blue tank engine swoops in and sets a player on fire (a random other player by default). A tribute to a famous Skyrim mod. |
+| **Steam Whistle** | Blow it and a winged blue tank engine swoops in and sets an opponent on fire: the one closest to your crosshair, at any range (never a teammate). While you hold the whistle, the game's lock-on marker shows who it will be. If nobody's left to target, it picks a random other player (or you, if you're alone). A tribute to a famous Skyrim mod. |
 | **Sniper Rifle** | Halo's SRS99, recreated. Hold aim to scope in at 2x (scroll up or middle mouse for 10x) with a Halo-style scope view; use to fire. One shot knocks a player out and goes through up to 2 players. One shot per pickup. Everyone hears the shot across the map and sees the vapor trail. |
 | **Predator Missile** | MW2's killstreak. Left click opens the laptop and launches: your view becomes the missile, coming down from high above. Steer with the mouse, left click or space boosts once. It explodes on whatever it hits with a big rocket blast; everyone else sees and hears it coming. Your golfer stands still while you fly. |
 | **Kamehameha** | Hold left click to charge (up to 3 s), release to fire a beam where you're looking. Hold right click to aim like the dueling pistol (its crosshair, slower walk, closer camera), also while charging. Everyone in it gets knocked out and launched (harder the longer you charged); golf balls get blasted too. Walls and terrain stop it. One per pickup. |
@@ -23,7 +23,15 @@ The README keeps the items a surprise. Everything is here instead.
 
 ## How often they show up
 
-The banana peel and boogie bomb are as common as the landmine (near the lead and in the Driving Range) and still turn up now and then further back. Everything else is about as rare as the orbital laser and thunderstorm, and like those it only comes out of item boxes for players who are behind the leader (more often the further behind you are). The Driving Range gives everything now and then. Hosts can change the odds in the match setup's item probability sliders like any other item (the pack's items are listed after the game's), and change the starting values with `ItemBoxFrequency` in the settings file.
+Each item turns up where it's useful. The game picks an item box pool by how far behind the leader you are (close: under 50 m, medium: 50-125 m, far: 125-200 m, very far: 200 m+), and the pack makes up roughly 30% of each pool:
+
+- **Near the lead:** fighting items: banana peel, boogie bomb, lightsaber, dirt blocks, kamehameha, and now and then the sniper rifle, portal gun and web slinger.
+- **Further back:** the sniper rifle, portal gun, web slinger, steam whistle, predator missile and Megazord.
+- **Far behind:** the blue shell joins in, the Megazord (a ride) gets more common, and the close-range fighting items stop showing up.
+- **Walked past your ball:** now and then a portal gun or web slinger, alongside the game's coffee and spring boots.
+- **Driving Range:** everything.
+
+Hosts can change the odds in the match setup's item probability sliders like any other item (the pack's items are listed after the game's), and scale the starting values with `ItemBoxFrequency` in the settings file. The host's `BepInEx\LogOutput.log` lists every item box roll (who, what, from which pool).
 
 ## Replaceable sounds
 

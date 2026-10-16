@@ -22,6 +22,8 @@ internal class SniperRifleItem : CustomItem
     public override int Id => 103;
     public override string Key => "SniperRifle";
     public override string DisplayName => "Sniper Rifle";
+    // Long-range pick: reaches the leader from a distance.
+    public override PoolWeights BoxWeights => new(close: 3, medium: 5, far: 4, veryFar: 2, aheadOfBall: 0, drivingRange: 20);
     // The Elephant Gun gives us a two-handed rifle hold, aiming and a shot animation.
     public override ItemType TemplateItem => ItemType.ElephantGun;
     public override EquipmentType TemplateEquipment => EquipmentType.ElephantGun;

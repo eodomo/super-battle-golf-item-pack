@@ -17,6 +17,8 @@ internal class PredatorItem : CustomItem
     public override int Id => 104;
     public override string Key => "PredatorMissile";
     public override string DisplayName => "Predator Missile";
+    // A strike from anywhere on the map.
+    public override PoolWeights BoxWeights => new(close: 0, medium: 2, far: 4, veryFar: 5, aheadOfBall: 0, drivingRange: 10);
     // The flash camera's two-handed hold works for a laptop.
     public override ItemType TemplateItem => ItemType.FlashCamera;
     public override EquipmentType TemplateEquipment => EquipmentType.FlashCamera;

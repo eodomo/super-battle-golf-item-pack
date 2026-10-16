@@ -9,13 +9,16 @@ namespace ItemPack;
 /// match setup's item probability sliders (host adjustable per pool, saved with the other rules) and in the
 /// game's own roll.
 ///
-/// The game has one pool per distance behind the leader (each totals 100; weights read from its data):
-///   close:    no orbital laser, thunderstorm or railgun at all
-///   medium:   thunderstorm 5, railgun 5
-///   far:      orbital laser 5, thunderstorm 5, railgun 10
-///   very far: orbital laser 5
-/// plus "ahead of your ball", the mobility mode's pool and the Driving Range's. Pack items start at the
-/// weights below (times their ItemBoxFrequency setting). Items that come in variants are listed once
+/// The game picks a pool by how much further from the hole you are than the leader (each totals 100; read
+/// from its data):
+///   close (0-50 m):     pistol, spring boots, landmine, electromagnet: fighting near the lead
+///   medium (50-125 m):  coffee, elephant gun, freeze bomb
+///   far (125-200 m):    coffee, rocket launcher, golf cart; railgun, orbital laser, thunderstorm
+///   very far (200 m+):  golf cart 35, coffee, rockets: mostly getting back in the race
+/// plus "ahead of your ball" (coffee and spring boots, for whoever walked past their ball), the mobility
+/// mode's pool and the Driving Range's. Most boxes are opened in the close pool (everyone starts a hole at the
+/// tee), so each item's <see cref="CustomItem.BoxWeights"/> follow what it is for, and the pack makes up
+/// roughly 30% of every pool. ItemBoxFrequency scales them. Items that come in variants are listed once
 /// (<see cref="CustomItem.ListedInItemBoxes"/>) and pick their variant when they come out of a box.
 ///
 /// The setup menu builds one slider per entry of its item order and finds them through a lookup indexed by
@@ -26,33 +29,22 @@ internal static class ItemBoxes
     private static readonly HashSet<ItemPool> filled = new();
     private static bool scanned;
 
-    private enum PoolKind { Close, Medium, Far, VeryFar, DrivingRange, Off }
+    private enum PoolKind { Close, Medium, Far, VeryFar, AheadOfBall, DrivingRange, Off }
 
     /// <summary>Default weight of an item in a pool (vanilla pools total 100; the Driving Range's 315).</summary>
     private static float DefaultWeight(CustomItem item, PoolKind kind)
     {
-        float weight = item.Rarity == ItemRarity.Common
-            ? kind switch
-            {
-                // As often as the landmine where the game has one (close to the lead, Driving Range),
-                // and still now and then further back.
-                PoolKind.Close => 15f,
-                PoolKind.Medium => 5f,
-                PoolKind.Far => 4f,
-                PoolKind.VeryFar => 4f,
-                PoolKind.DrivingRange => 20f,
-                _ => 0f,
-            }
-            : kind switch
-            {
-                // Each a bit rarer than the orbital laser, and never for whoever is near the lead.
-                PoolKind.Close => 0f,
-                PoolKind.Medium => 1.5f,
-                PoolKind.Far => 3f,
-                PoolKind.VeryFar => 3f,
-                PoolKind.DrivingRange => 5f,
-                _ => 0f,
-            };
+        PoolWeights weights = item.BoxWeights;
+        float weight = kind switch
+        {
+            PoolKind.Close => weights.Close,
+            PoolKind.Medium => weights.Medium,
+            PoolKind.Far => weights.Far,
+            PoolKind.VeryFar => weights.VeryFar,
+            PoolKind.AheadOfBall => weights.AheadOfBall,
+            PoolKind.DrivingRange => weights.DrivingRange,
+            _ => 0f,
+        };
         return weight * Mathf.Max(0f, item.ItemBoxFrequency.Value);
     }
 
@@ -60,7 +52,11 @@ internal static class ItemBoxes
     private static PoolKind GetPoolKind(ItemPool pool)
     {
         string name = pool.name.ToLowerInvariant();
-        if (name.Contains("ahead") || name.Contains("mobility"))
+        if (name.Contains("ahead"))
+        {
+            return PoolKind.AheadOfBall;
+        }
+        if (name.Contains("mobility"))
         {
             return PoolKind.Off; // listed (so hosts can turn them on) but off by default
         }

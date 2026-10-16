@@ -15,12 +15,13 @@ internal class BoogieBombItem : CustomItem
     public override int Id => 108;
     public override string Key => "BoogieBomb";
     public override string DisplayName => "Boogie Bomb";
+    // Crowd control: best where players bunch up.
+    public override PoolWeights BoxWeights => new(close: 8, medium: 6, far: 2, veryFar: 0, aheadOfBall: 0, drivingRange: 20);
     // Thrown one-handed like the freeze bomb.
     public override ItemType TemplateItem => ItemType.FreezeBomb;
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;
     public override string AssetName => "boogie_bomb";
     public override ReticleType AimReticle => ReticleType.FreezeBomb;
-    public override ItemRarity Rarity => ItemRarity.Common;
 
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 1f;

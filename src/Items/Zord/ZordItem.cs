@@ -20,6 +20,8 @@ internal class ZordItem : CustomItem
     public override int Id => 113;
     public override string Key => "Zord";
     public override string DisplayName => "Megazord";
+    // A ride (it's a golf cart underneath), like the carts vanilla gives players far behind.
+    public override PoolWeights BoxWeights => new(close: 0, medium: 2, far: 5, veryFar: 8, aheadOfBall: 0, drivingRange: 10);
     public override ItemType TemplateItem => ItemType.GolfCart;
     public override EquipmentType TemplateEquipment => EquipmentType.GolfCartWhole;
     public override string AssetName => "zord";
