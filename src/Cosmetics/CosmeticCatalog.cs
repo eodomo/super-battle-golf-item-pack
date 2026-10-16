@@ -76,6 +76,7 @@ internal static class CosmeticCatalog
         Addressables.ResourceManager.ResourceProviders.Add(provider);
         Addressables.AddResourceLocator(new PackLocator());
         RangerSet.Prebuild();
+        Items.ZordParts.Prebuild();
         Plugin.Log.LogInfo($"Cosmetics catalog installed: {metadataLocations.Count} items, {locations.Count} keys.");
     }
 

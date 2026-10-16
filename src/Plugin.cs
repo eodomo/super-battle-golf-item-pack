@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.6.0";
+    public const string Version = "0.7.0";
 
     internal static ManualLogSource Log;
 
@@ -55,6 +55,7 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new LightsaberItem(SaberColor.Green));
         ItemCatalog.Add(new LightsaberItem(SaberColor.Red));
         ItemCatalog.Add(new WebSlingerItem());
+        ItemCatalog.Add(new ZordItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
@@ -81,7 +82,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 7;
+        const int ConfigVersion = 8;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -159,6 +160,11 @@ public class Plugin : BaseUnityPlugin
         {
             // Reset the lightsaber's uses again: some test installs reached version 5 while its default was still 3.
             LightsaberItem.Primary.UsesPerPickup.Value = (int)LightsaberItem.Primary.UsesPerPickup.DefaultValue;
+        }
+        if (stored.Value < 8)
+        {
+            // The Megazord's cart knockback was halved.
+            ZordItem.CartKnockback.Value = (float)ZordItem.CartKnockback.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

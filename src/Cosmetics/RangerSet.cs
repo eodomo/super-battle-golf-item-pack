@@ -270,6 +270,23 @@ internal static class RangerSet
         {
             Plugin.Log.LogWarning($"Ranger: boot source has {source.bindposes.Length} bindposes (expected 67); bone order may be off.");
         }
+        // Drop any triangle joining the left and right boot: the source mesh has a strip between them, which stretches
+        // across the gap when the legs move.
+        var kept = new System.Collections.Generic.List<int>();
+        int[] all = copy.Triangles[0];
+        for (int t = 0; t + 2 < all.Length; t += 3)
+        {
+            bool anyLeft = copy.Positions[all[t]].x < 0f || copy.Positions[all[t + 1]].x < 0f || copy.Positions[all[t + 2]].x < 0f;
+            bool anyRight = copy.Positions[all[t]].x >= 0f || copy.Positions[all[t + 1]].x >= 0f || copy.Positions[all[t + 2]].x >= 0f;
+            if (!(anyLeft && anyRight))
+            {
+                kept.Add(all[t]);
+                kept.Add(all[t + 1]);
+                kept.Add(all[t + 2]);
+            }
+        }
+        Plugin.Log.LogInfo($"Ranger boots: dropped {(all.Length - kept.Count) / 3} triangles joining the two boots.");
+        copy = new MeshCopy { Positions = copy.Positions, Normals = copy.Normals, Uvs = copy.Uvs, Triangles = new[] { kept.ToArray() } };
         int count = copy.Positions.Length;
         var weights = new BoneWeight[count];
         for (int v = 0; v < count; v++)

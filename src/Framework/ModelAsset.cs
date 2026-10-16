@@ -28,6 +28,12 @@ internal class ModelAsset
 
     public bool HasMaterials => materials != null;
 
+    /// <summary>The materials (one per submesh color) once <see cref="InitMaterials"/> has run.</summary>
+    public Material[] Materials => materials;
+
+    /// <summary>A model that is only a set of colors (its meshes are loaded by the caller), e.g. a multi-part character.</summary>
+    public static ModelAsset FromColors(string name, Color[] colors) => new ModelAsset { Name = name, submeshColors = colors };
+
     public static ModelAsset Load(string directory, string name, bool loadIcon = true, bool loadMesh = true)
     {
         var asset = new ModelAsset { Name = name };

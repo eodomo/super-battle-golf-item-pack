@@ -1,0 +1,3 @@
+# The Megazord is painted by zord_tex.png (see zord_texture.py)
+newmtl Zord
+Kd 1.0 1.0 1.0
