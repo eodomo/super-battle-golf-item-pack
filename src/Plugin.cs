@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.5.1";
+    public const string Version = "0.6.0";
 
     internal static ManualLogSource Log;
 
@@ -63,6 +63,7 @@ public class Plugin : BaseUnityPlugin
         }
         MigrateConfig();
         DroppedItems.InitSerializers();
+        RangerSet.Register(pluginDir);
         new Harmony(Guid).PatchAll();
 
         // Own runner object, so updates keep going even if the BepInEx manager object gets disabled.
@@ -170,6 +171,10 @@ internal class ItemPackRunner : MonoBehaviour
     private void Update()
     {
         ItemCatalog.EnsureRegistered();
+        if (CosmeticCatalog.CanInstall)
+        {
+            CosmeticCatalog.Install();
+        }
         foreach (CustomItem item in ItemCatalog.All)
         {
             try
@@ -184,6 +189,22 @@ internal class ItemPackRunner : MonoBehaviour
         Beams.Tick();
 #if DEVTOOLS
         ItemMenu.Update();
+        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current[Key.F9].wasPressedThisFrame)
+        {
+            CosmeticsProbe.Dump();
+        }
+        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current[Key.F11].wasPressedThisFrame)
+        {
+            DevTeleport.ToWardrobe();
+        }
+        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current[Key.Digit0].wasPressedThisFrame)
+        {
+            DevShot.Take();
+        }
+        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current[Key.F10].wasPressedThisFrame)
+        {
+            CosmeticsProbe2.Dump();
+        }
 #endif
     }
 

@@ -1,0 +1,12 @@
+# Kd values are sRGB
+newmtl Accent
+Kd 0.8600 0.0900 0.1100
+
+newmtl Silver
+Kd 0.8000 0.8400 0.9000
+
+newmtl Gold
+Kd 0.9300 0.7200 0.1600
+
+newmtl Dark
+Kd 0.1000 0.1000 0.1200

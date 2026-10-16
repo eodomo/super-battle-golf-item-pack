@@ -1,0 +1,12 @@
+# Kd values are sRGB
+newmtl Shell
+Kd 1.0000 1.0000 1.0000
+
+newmtl Visor
+Kd 0.0300 0.0300 0.0500
+
+newmtl Silver
+Kd 0.7400 0.7700 0.8300
+
+newmtl Gold
+Kd 0.9300 0.7200 0.1600
