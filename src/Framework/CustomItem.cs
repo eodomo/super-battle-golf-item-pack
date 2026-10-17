@@ -61,6 +61,15 @@ internal abstract class CustomItem
     /// <summary>The model shown in the player's hand. Defaults to the item's .obj model.</summary>
     public virtual GameObject CreateHeldModel(Transform parent, float scale) => Model.CreateModel(parent, scale);
 
+    /// <summary>
+    /// True to have <see cref="HeldGrip"/> keep the held model's grip point on the palm. Items that place themselves
+    /// by hand bones (the lightsaber, Captain America's shield) turn this off.
+    /// </summary>
+    public virtual bool AnchorToHand => true;
+
+    /// <summary>Where the hand holds the model, in the model's own space (null = the middle of the model).</summary>
+    public virtual Vector3? HeldGrip => null;
+
     /// <summary>The model shown when the item lies on the ground after being dropped. Defaults to the held model.</summary>
     public virtual GameObject CreateDroppedModel(Transform parent) => CreateHeldModel(parent, HeldScale.Value);
 

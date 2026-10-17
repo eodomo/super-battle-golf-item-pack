@@ -20,6 +20,7 @@ The README keeps the items a surprise. Everything is here instead.
 | **Captain America's Shield** | Marvel. Worn on your right hand, facing out from your chest, it blocks a hit coming from in front of you (shots, swings, rockets, explosions, beams), with a ringing clang everyone hears. Use throws it instantly: it spins out flat and level straight ahead (hold right click to aim it at the crosshair instead) and keeps going until it hits something, then comes back to your hand. Hitting a player knocks them out; hitting a cart shoves it. One charge: a block, or a throw that hits a player or cart, uses it up (once it's back in your hand). Bouncing off a wall or the ground is free, but a throw that hits nothing at all is gone for good. |
 | **Ender Pearl** | Minecraft. Throw it (it lands where your crosshair points, on the flattest arc, and goes through portals) and you teleport to where it lands, with a "vwoop" and purple particles at both ends. Land it on a wall and you end up at the foot of it. One per pickup. |
 | **Emergency Meeting** | Among Us. Press the button: everyone gets an "EMERGENCY MEETING!" screen and a klaxon, then every player is pulled to a round table in front of you and stands frozen around it for 3 seconds (you can still look around). Their balls stay where they were, so everyone else has a walk back. The screen and klaxon are the pack's own; put `emergency_meeting.png` and/or `emergency_klaxon` (`.ogg`, `.wav`, `.mp3` or `.flac`) in `BepInEx\plugins\ItemPack\EmergencyMeeting\` to use your own. |
+| **Jellyfish Net** | SpongeBob. Held out to your right; one big swing across your body to catch someone, and it has to be up close (a short reach). Whoever it catches is curled up in the net, kicking and shoving against it, and carried out in front of you for 10 seconds while you walk at about half speed; left click flings them out early. Put the net away and they drop out. A swing that catches nobody uses the net up. Swooshes as it swings and as it lets go (replace them with `jellyfishnet_swing` / `jellyfishnet_release` sound files in `BepInEx\plugins\ItemPack\JellyfishNet\`). |
 
 ## Outfit pieces
 
@@ -29,7 +30,7 @@ The README keeps the items a surprise. Everything is here instead.
 
 Each item turns up where it's useful. The game picks an item box pool by how far behind the leader you are (close: under 50 m, medium: 50-125 m, far: 125-200 m, very far: 200 m+), and the pack makes up roughly 30% of each pool:
 
-- **Near the lead:** fighting items: banana peel, boogie bomb, lightsaber, dirt blocks, kamehameha, the two shields (bubble and Captain America's), and now and then the sniper rifle, portal gun and web slinger.
+- **Near the lead:** fighting items: banana peel, boogie bomb, lightsaber, jellyfish net, dirt blocks, kamehameha, the two shields (bubble and Captain America's), and now and then the sniper rifle, portal gun and web slinger.
 - **Further back:** the sniper rifle, portal gun, web slinger, ender pearl, steam whistle, predator missile and Megazord.
 - **Far behind:** the blue shell joins in, so does the emergency meeting (it pulls the leaders back to you), the Megazord (a ride) gets more common, and the close-range fighting items stop showing up.
 - **Walked past your ball:** now and then a portal gun, web slinger or ender pearl, alongside the game's coffee and spring boots.

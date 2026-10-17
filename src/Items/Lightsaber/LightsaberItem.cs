@@ -58,6 +58,7 @@ internal class LightsaberItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;
     public override string AssetName => $"lightsaber_{Variant.ToString().ToLowerInvariant()}";
     protected override bool HasMesh => false;
+    public override bool AnchorToHand => false; // SaberBlade grips the hilt itself
     // One "Lightsaber" entry in the item boxes (and the setup menu's sliders); the color is picked when it comes out.
     public override bool ListedInItemBoxes => IsPrimary;
     public override ItemType RollFromItemBox() => (ItemType)(FirstId + Random.Range(0, 3));

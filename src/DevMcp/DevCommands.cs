@@ -25,6 +25,9 @@ internal static class DevCommands
         switch (tool)
         {
             case "state": return State(r);
+            case "held_report": return Once(() => HeldReport(r));
+            case "spawn_dummy": return Once(() => SpawnDummy(a, r));
+            case "remove_dummies": return Once(() => r.Text($"Removed {DevDummies.RemoveAll()} dummies."));
             case "teleport": return Teleport(a, r);
             case "camera": return CameraCommand(a, r);
             case "screenshot": return Screenshot(a, r);
@@ -76,7 +79,100 @@ internal static class DevCommands
         return true;
     }
 
+    /// <summary>A dummy player at position (default: 3 m in front of the local player, facing them).</summary>
+    private static void SpawnDummy(JObject a, DevReply r)
+    {
+        PlayerMovement player = RequirePlayer(r);
+        if (player == null || !RequireHost(r))
+        {
+            return;
+        }
+        Vector3 position = DevJson.ReadVector(a["position"]) is Vector3 p ? p : player.transform.position + player.transform.forward * 3f;
+        float yaw = (float?)a["yaw"] ?? player.transform.eulerAngles.y + 180f;
+        if (Physics.Raycast(position + Vector3.up * 3f, Vector3.down, out RaycastHit hit, 20f, GameManager.LayerSettings.PlayerGroundableMask, QueryTriggerInteraction.Ignore) && !(a["position"] is JArray))
+        {
+            position = hit.point + Vector3.up * 0.1f;
+        }
+        PlayerInfo dummy = DevDummies.Spawn(position, yaw, (string)a["name"], out string error);
+        if (dummy == null)
+        {
+            r.Fail(error);
+            return;
+        }
+        r.Text($"Spawned a dummy player (net id {dummy.netId}) at {position}.");
+    }
+
     // ---- state ----
+
+    /// <summary>Where the held item sits relative to the hand: bounds center and the finger bones' centroid, in Tool1 space.</summary>
+    private static void HeldReport(DevReply r)
+    {
+        PlayerMovement player = RequirePlayer(r);
+        if (player == null)
+        {
+            return;
+        }
+        Transform wrist = player.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "R_Wrist");
+        Transform tool = wrist != null ? wrist.Find("Tool1") : null;
+        if (tool == null || tool.childCount == 0)
+        {
+            r.Fail("No held equipment under R_Wrist/Tool1.");
+            return;
+        }
+        Transform equipment = null;
+        foreach (Transform child in tool)
+        {
+            if (child.gameObject.activeInHierarchy && !child.name.StartsWith("Golf club"))
+            {
+                equipment = child;
+            }
+        }
+        if (equipment == null)
+        {
+            r.Fail("No active held equipment under Tool1.");
+            return;
+        }
+        var fingers = new List<Vector3>();
+        foreach (Transform t in wrist.GetComponentsInChildren<Transform>(true))
+        {
+            if (t != wrist && !t.IsChildOf(tool) && t.name.StartsWith("R_") && (t.name.EndsWith("1") || t.name.EndsWith("2")))
+            {
+                fingers.Add(t.position);
+            }
+        }
+        Vector3 fingerCenter = Vector3.zero;
+        foreach (Vector3 f in fingers)
+        {
+            fingerCenter += f / fingers.Count;
+        }
+        Bounds bounds = default;
+        bool any = false;
+        foreach (Renderer renderer in equipment.GetComponentsInChildren<Renderer>(false))
+        {
+            if (!any)
+            {
+                bounds = renderer.bounds;
+                any = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+        r.Json(new Dictionary<string, object>
+        {
+            ["equipment"] = equipment.name,
+            ["equipment_local_pos"] = DevJson.V(equipment.localPosition),
+            ["equipment_local_euler"] = DevJson.V(equipment.localEulerAngles),
+            ["tool_world"] = DevJson.V(tool.position),
+            ["tool_euler_world"] = DevJson.V(tool.eulerAngles),
+            ["fingers"] = fingers.Count,
+            ["finger_center_tool_local"] = DevJson.V(tool.InverseTransformPoint(fingerCenter)),
+            ["wrist_tool_local"] = DevJson.V(tool.InverseTransformPoint(wrist.position)),
+            ["bounds_center_tool_local"] = any ? DevJson.V(tool.InverseTransformPoint(bounds.center)) : null,
+            ["bounds_size_world"] = any ? DevJson.V(bounds.size) : null,
+        });
+    }
 
     private static IEnumerator State(DevReply r)
     {
@@ -152,7 +248,7 @@ internal static class DevCommands
             {
                 if (other != null)
                 {
-                    others.Add(new { name = other.PlayerId?.PlayerNameNoRichText, position = DevJson.V(other.transform.position) });
+                    others.Add(new { name = other.PlayerId?.PlayerNameNoRichText, net_id = other.netId, dummy = DevDummies.IsDummy(other.netId), position = DevJson.V(other.transform.position) });
                 }
             }
             state["other_players"] = others;

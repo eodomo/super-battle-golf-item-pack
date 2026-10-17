@@ -1,0 +1,9 @@
+# Kd values are sRGB
+newmtl Bamboo
+Kd 0.8400 0.7200 0.3800
+
+newmtl Node
+Kd 0.5800 0.4600 0.2000
+
+newmtl Cord
+Kd 0.9700 0.9700 0.9500

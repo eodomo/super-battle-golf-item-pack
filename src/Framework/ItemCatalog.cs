@@ -124,6 +124,10 @@ internal static class ItemCatalog
                 : Vector3.zero;
             model.transform.localPosition = basePosition + item.HeldOffset.Value;
             model.transform.localEulerAngles = item.HeldRotation.Value;
+            if (item.AnchorToHand)
+            {
+                model.AddComponent<HeldGrip>().ItemId = item.Id;
+            }
             equipmentPrefabs[item] = prefab;
         }
 

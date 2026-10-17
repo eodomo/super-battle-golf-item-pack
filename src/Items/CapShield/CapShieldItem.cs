@@ -26,6 +26,7 @@ internal class CapShieldItem : CustomItem
     public override EquipmentType TemplateEquipment => EquipmentType.FreezeBomb;
     public override string AssetName => "cap_shield";
     protected override string ConfigSection => "Captain America Shield";
+    public override bool AnchorToHand => false; // CapShieldHeld straps it on itself
     // It flies straight, so the pistol's crosshair fits.
     public override ReticleType AimReticle => ReticleType.DuelingPistol;
 

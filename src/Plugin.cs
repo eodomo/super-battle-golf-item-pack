@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.9.4";
+    public const string Version = "0.10.0";
 
     internal static ManualLogSource Log;
 
@@ -65,6 +65,7 @@ public class Plugin : BaseUnityPlugin
         ItemCatalog.Add(new CapShieldItem());
         ItemCatalog.Add(new EnderPearlItem());
         ItemCatalog.Add(new MeetingItem());
+        ItemCatalog.Add(new JellyfishNetItem());
 
         string pluginDir = Path.GetDirectoryName(Info.Location);
         foreach (CustomItem item in ItemCatalog.All)
