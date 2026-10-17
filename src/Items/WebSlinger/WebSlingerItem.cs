@@ -9,8 +9,8 @@ namespace ItemPack.Items;
 /// <summary>
 /// Web Slinger (Spider-Man): your first click starts a timer, and until it runs out you can sling webs. Hold
 /// left click to shoot a web at what you're aiming at; it sticks and you swing from it like a pendulum, reeling
-/// in a little as you go. Let go of the button to release and keep your speed. When the timer ends the item is
-/// used up.
+/// in a little as you go. Let go of the button to release and keep your speed. When the timer ends, or you switch to
+/// another item, the item is used up.
 ///
 /// Each player moves their own golfer, so the swing is applied to the local player's rigidbody every physics
 /// step (see <see cref="FixedTick"/>); everyone else just sees the strand and hears the thwip.
@@ -46,9 +46,10 @@ internal class WebSlingerItem : CustomItem
     private const float MinRope = 4f;
     private const float AimAssistRadius = 1.5f;
 
-    // The timer: not started (inactive), or the seconds left. It only counts down while the glove is in hand.
+    // The timer: not started (inactive), or the seconds left. Switching to another item ends it.
     private static bool slinging;
     private static float secondsLeft;
+    private static int slingSlot;
 
     // The current web, if any (local player only).
     private static bool attached;
@@ -98,6 +99,13 @@ internal class WebSlingerItem : CustomItem
         {
             Detach();
         }
+        if (slinging && !holding)
+        {
+            // Switched to something else: that ends the timer, and the item is used up.
+            slinging = false;
+            ItemUse.EndAway(player != null ? player.Inventory : null, slingSlot, Type);
+            return;
+        }
         if (!holding || Mouse.current == null)
         {
             return;
@@ -123,6 +131,7 @@ internal class WebSlingerItem : CustomItem
         {
             ItemUse.BreakStealth(inventory);
             slinging = true;
+            slingSlot = inventory.EquippedItemIndex;
             secondsLeft = SlingSeconds.Value;
         }
         if (!slinging)

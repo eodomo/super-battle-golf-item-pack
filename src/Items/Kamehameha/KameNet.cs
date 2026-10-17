@@ -113,17 +113,20 @@ internal static class KameNet
         msg.radius = Mathf.Clamp(msg.radius, 0.1f, 4f);
         msg.direction = msg.direction.sqrMagnitude > 0.001f ? msg.direction.normalized : conn.identity.transform.forward;
         NetworkServer.SendToAll(msg);
-        DirtWorld.ServerBreakInCapsule(msg.origin, msg.origin + msg.direction * msg.length, msg.radius);
 
-        // Golf balls in the beam get blasted along it (the host simulates balls).
+        // The beam can go through portals: every piece of it breaks dirt and blasts golf balls along it (the host simulates balls).
         LayerSettings layers = GameManager.LayerSettings;
-        int count = Physics.SphereCastNonAlloc(msg.origin, msg.radius, msg.direction, ballHits, msg.length, layers.BallMask | layers.DynamicBallMask, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < count; i++)
+        foreach (PortalPaths.Segment segment in PortalPaths.Trace(msg.origin, msg.direction, msg.length, 0, out _))
         {
-            Rigidbody body = ballHits[i].rigidbody;
-            if (body != null && !body.isKinematic)
+            DirtWorld.ServerBreakInCapsule(segment.origin, segment.End, msg.radius);
+            int count = Physics.SphereCastNonAlloc(segment.origin, msg.radius, segment.direction, ballHits, segment.length, layers.BallMask | layers.DynamicBallMask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
             {
-                body.AddForce((msg.direction + Vector3.up * 0.3f) * Mathf.Min(msg.power, MaxPower), ForceMode.VelocityChange);
+                Rigidbody body = ballHits[i].rigidbody;
+                if (body != null && !body.isKinematic)
+                {
+                    body.AddForce((segment.direction + Vector3.up * 0.3f) * Mathf.Min(msg.power, MaxPower), ForceMode.VelocityChange);
+                }
             }
         }
     }

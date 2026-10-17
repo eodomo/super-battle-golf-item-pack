@@ -27,4 +27,18 @@ internal static class ItemUse
         inventory.SetCurrentItemUse(ItemUseType.None);
         inventory.RemoveIfOutOfUses(inventory.EquippedItemIndex, dueToFinishedItemUse: true);
     }
+
+    /// <summary>
+    /// A timed item that was put away mid-use (switched to another item): its use ends there, as if the timer ran out.
+    /// Does nothing if the slot no longer holds that item (dropped, stolen or lost).
+    /// </summary>
+    public static void EndAway(PlayerInventory inventory, int slot, ItemType type)
+    {
+        if (inventory == null || slot < 0 || inventory.GetEffectiveSlot(slot).itemType != type)
+        {
+            return;
+        }
+        ConsumeUseAt(inventory, slot);
+        inventory.RemoveIfOutOfUses(slot, dueToFinishedItemUse: true);
+    }
 }

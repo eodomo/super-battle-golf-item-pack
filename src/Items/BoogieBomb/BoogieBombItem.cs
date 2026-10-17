@@ -56,8 +56,6 @@ internal class BoogieBombItem : CustomItem
         PlayerInfo player = inventory.PlayerInfo;
         inventory.SetCurrentItemUse(ItemUseType.Regular);
         player.Movement.AlignWithCameraImmediately();
-        float throwTime = GameManager.ItemSettings.FreezeBombThrowTime;
-        yield return new WaitForSeconds(throwTime > 0.05f && throwTime < 1f ? throwTime : 0.25f);
 
         ItemUse.ConsumeUse(inventory);
         Vector3 hand = player.RightHandEquipmentSwitcher.transform.position;

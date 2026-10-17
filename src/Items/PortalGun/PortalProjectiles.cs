@@ -62,7 +62,7 @@ internal static class PortalProjectiles
     }
 
     /// <summary>Whether <paramref name="collider"/> is the wall of an open portal, and <paramref name="point"/> is in that portal's opening.</summary>
-    private static bool IsPortalWallAt(Collider collider, Vector3 point)
+    public static bool IsPortalWallAt(Collider collider, Vector3 point)
     {
         if (collider == null)
         {

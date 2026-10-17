@@ -37,9 +37,10 @@ internal class DirtBlocksItem : CustomItem
     internal static ConfigEntry<int> MaxBlocks;
     internal static ConfigEntry<float> BuildSeconds;
 
-    // The build timer: not running (inactive), or the seconds left. It only counts down while the stack is in hand.
+    // The build timer: not running (inactive), or the seconds left. Switching to another item ends it.
     private static bool building;
     private static float secondsLeft;
+    private static int buildSlot;
 
     private const float PlaceCooldown = 0.18f;
     private const float BreakCooldown = 0.25f;
@@ -91,6 +92,13 @@ internal class DirtBlocksItem : CustomItem
             hasTarget = TryGetPlacement(inventory.PlayerInfo, out cell, out canPlace, out layer);
         }
         PlacementOutline.Show(hasTarget, cell, canPlace);
+        if (building && !holding)
+        {
+            // Switched to something else: that ends the build, and the item is used up.
+            building = false;
+            ItemUse.EndAway(GameManager.LocalPlayerInfo != null ? GameManager.LocalPlayerInfo.Inventory : null, buildSlot, Type);
+            return;
+        }
         if (!holding || Mouse.current == null)
         {
             return;
@@ -115,6 +123,7 @@ internal class DirtBlocksItem : CustomItem
         {
             ItemUse.BreakStealth(inventory);
             building = true;
+            buildSlot = inventory.EquippedItemIndex;
             secondsLeft = BuildSeconds.Value;
         }
         if (!building)

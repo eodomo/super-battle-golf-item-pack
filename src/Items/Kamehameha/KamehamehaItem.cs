@@ -150,34 +150,40 @@ internal class KamehamehaItem : CustomItem
             aim = aimHit.point;
         }
         Vector3 direction = (aim - origin).normalized;
-        float length = Physics.Raycast(origin, direction, out RaycastHit wall, MaxRange.Value, SolidMask, QueryTriggerInteraction.Ignore)
-            ? wall.distance
-            : MaxRange.Value;
+        // The beam goes on through portals, so it's a few straight pieces; length is the whole path.
+        List<PortalPaths.Segment> path = PortalPaths.Trace(origin, direction, MaxRange.Value, SolidMask, out float length);
         float radius = Mathf.Lerp(MinRadius.Value, MaxRadius.Value, charge);
         float power = Mathf.Lerp(MinLaunch.Value, MaxLaunch.Value, charge);
 
         // Everyone in the beam (except us) gets hit like by the railgun: vaporized and sent back to their spawn.
-        var victims = new List<(Hittable hittable, Vector3 point, float distance)>();
+        // The beam can go through portals, so each straight piece is checked, with the distance counted along the whole path.
+        var victims = new List<(Hittable hittable, Vector3 point, Vector3 direction, Vector3 origin, float distance)>();
         var seen = new HashSet<uint>();
-        int count = Physics.SphereCastNonAlloc(origin - direction * radius, radius, direction, hits, length + radius,
-            GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < count; i++)
+        float travelled = 0f;
+        foreach (PortalPaths.Segment segment in path)
         {
-            PlayerInfo target = hits[i].collider.GetComponentInParent<PlayerInfo>();
-            if (target != null && target != player && seen.Add(target.netId))
+            int count = Physics.SphereCastNonAlloc(segment.origin - segment.direction * radius, radius, segment.direction, hits, segment.length + radius,
+                GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
             {
-                victims.Add((target.AsHittable, target.transform.position + Vector3.up, Mathf.Max(0f, hits[i].distance - radius)));
+                PlayerInfo target = hits[i].collider.GetComponentInParent<PlayerInfo>();
+                if (target != null && target != player && seen.Add(target.netId))
+                {
+                    victims.Add((target.AsHittable, target.transform.position + Vector3.up, segment.direction, segment.origin,
+                        travelled + Mathf.Max(0f, hits[i].distance - radius)));
+                }
             }
+            travelled += segment.length;
         }
 
         ItemUse.BreakStealth(inventory);
         ulong useHash = inventory.GetEquippedItemUseHash();
         inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
         ItemUseId useId = inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun);
-        foreach ((Hittable hittable, Vector3 point, float distance) in victims)
+        foreach ((Hittable hittable, Vector3 point, Vector3 hitDirection, Vector3 hitOrigin, float distance) in victims)
         {
-            hittable.HitWithItem(ItemType.Railgun, useId, hittable.transform.InverseTransformPoint(point), direction,
-                hittable.transform.InverseTransformPoint(origin), distance, inventory, isReflected: false, isInSpecialState: false,
+            hittable.HitWithItem(ItemType.Railgun, useId, hittable.transform.InverseTransformPoint(point), hitDirection,
+                hittable.transform.InverseTransformPoint(hitOrigin), distance, inventory, isReflected: false, isInSpecialState: false,
                 canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
         }
         inventory.CmdValidateAndConsumeItemUse(useHash); // after the hits, like the guns

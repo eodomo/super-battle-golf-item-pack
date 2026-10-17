@@ -20,15 +20,27 @@ internal static class KameEffects
         public FMOD.Channel sound;
     }
 
-    private class Beam
+    /// <summary>One straight piece of a beam (a beam that goes through portals has several).</summary>
+    private class Piece
     {
         public GameObject root;
         public Transform outer;
         public Transform core;
+        public Vector3 origin;
+        public Vector3 direction;
+        public float offset;   // how far along the whole beam this piece starts
+        public float length;
+    }
+
+    private class Beam
+    {
+        public List<Piece> pieces = new();
         public Transform endBall;
         public float start;
         public float length;
         public float radius;
+
+        public GameObject Root => pieces[0].root;
     }
 
     private static readonly Dictionary<uint, Charge> charges = new();
@@ -104,17 +116,27 @@ internal static class KameEffects
         LoadSounds();
         ItemAudio.Play(fireSound, ItemAudio.SfxBus, Volume(origin));
 
-        var root = new GameObject("Kamehameha");
-        root.transform.SetPositionAndRotation(origin, Quaternion.LookRotation(direction));
-        var beam = new Beam { root = root, start = Time.time, length = length, radius = radius };
-        beam.outer = Cylinder(root.transform, OuterMaterial);
-        beam.core = Cylinder(root.transform, CoreMaterial);
+        var beam = new Beam { start = Time.time, length = length, radius = radius };
+        // Through portals the beam comes out of each exit: work out the pieces the same way the shooter did.
+        float offset = 0f;
+        foreach (PortalPaths.Segment segment in PortalPaths.Trace(origin, direction, length, 0, out _))
+        {
+            var root = new GameObject("Kamehameha");
+            root.transform.SetPositionAndRotation(segment.origin, Quaternion.LookRotation(segment.direction));
+            beam.pieces.Add(new Piece
+            {
+                root = root, outer = Cylinder(root.transform, OuterMaterial), core = Cylinder(root.transform, CoreMaterial),
+                origin = segment.origin, direction = segment.direction, offset = offset, length = segment.length,
+            });
+            offset += segment.length;
+        }
+        GameObject first = beam.Root;
         var startBall = Primitive(PrimitiveType.Sphere, "StartBall", OuterMaterial);
-        startBall.transform.SetParent(root.transform, false);
+        startBall.transform.SetParent(first.transform, false);
         startBall.transform.localScale = Vector3.one * (radius * 2.6f);
         beam.endBall = Primitive(PrimitiveType.Sphere, "EndBall", OuterMaterial).transform;
-        beam.endBall.SetParent(root.transform, false);
-        var light = root.AddComponent<Light>();
+        beam.endBall.SetParent(first.transform, false);
+        var light = first.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = new Color(0.45f, 0.7f, 1f);
         light.range = 12f + radius * 4f;
@@ -156,12 +178,9 @@ internal static class KameEffects
         {
             Beam beam = beams[i];
             float age = now - beam.start;
-            if (beam.root == null || age > BeamGrow + BeamHold + BeamFade)
+            if (beam.Root == null || age > BeamGrow + BeamHold + BeamFade)
             {
-                if (beam.root != null)
-                {
-                    Object.Destroy(beam.root);
-                }
+                DestroyBeam(beam);
                 beams.RemoveAt(i);
                 continue;
             }
@@ -177,12 +196,20 @@ internal static class KameEffects
         }
         foreach (Beam beam in beams)
         {
-            if (beam.root != null)
-            {
-                Object.Destroy(beam.root);
-            }
+            DestroyBeam(beam);
         }
         beams.Clear();
+    }
+
+    private static void DestroyBeam(Beam beam)
+    {
+        foreach (Piece piece in beam.pieces)
+        {
+            if (piece.root != null)
+            {
+                Object.Destroy(piece.root);
+            }
+        }
     }
 
     private static void UpdateBeam(Beam beam, float age)
@@ -191,12 +218,22 @@ internal static class KameEffects
         float fade = age < BeamGrow + BeamHold ? 1f : 1f - (age - BeamGrow - BeamHold) / BeamFade;
         float wobble = 1f + Mathf.Sin(age * 40f) * 0.06f;
         float r = beam.radius * Mathf.Clamp01(fade) * wobble;
-        // Unity's cylinder is 2 units tall along Y: rotate it onto Z, scale Y to half the length.
-        beam.outer.localPosition = new Vector3(0f, 0f, reach * 0.5f);
-        beam.outer.localScale = new Vector3(r * 2f, reach * 0.5f, r * 2f);
-        beam.core.localPosition = beam.outer.localPosition;
-        beam.core.localScale = new Vector3(r * 0.9f, reach * 0.5f + 0.01f, r * 0.9f);
-        beam.endBall.localPosition = new Vector3(0f, 0f, reach);
+        Vector3 head = beam.pieces[0].origin;
+        foreach (Piece piece in beam.pieces)
+        {
+            // How much of this piece the beam has grown into.
+            float pieceReach = Mathf.Clamp(reach - piece.offset, 0f, piece.length);
+            // Unity's cylinder is 2 units tall along Y: rotate it onto Z, scale Y to half the length.
+            piece.outer.localPosition = new Vector3(0f, 0f, pieceReach * 0.5f);
+            piece.outer.localScale = new Vector3(r * 2f, pieceReach * 0.5f, r * 2f);
+            piece.core.localPosition = piece.outer.localPosition;
+            piece.core.localScale = new Vector3(r * 0.9f, pieceReach * 0.5f + 0.01f, r * 0.9f);
+            if (reach >= piece.offset)
+            {
+                head = piece.origin + piece.direction * pieceReach;
+            }
+        }
+        beam.endBall.position = head;
         beam.endBall.localScale = Vector3.one * (r * 2.4f);
     }
 

@@ -30,10 +30,22 @@ internal static class PortalShots
     private static int shotFrame = -1;
 
     /// <summary>Like Physics.RaycastNonAlloc, but the ray continues through any open portal it enters.</summary>
-    public static int RaycastNonAlloc(Ray ray, RaycastHit[] results, float maxDistance, int layerMask, QueryTriggerInteraction triggers)
+    public static int RaycastNonAlloc(Ray ray, RaycastHit[] results, float maxDistance, int layerMask, QueryTriggerInteraction triggers) =>
+        Follow(ray, 0f, results, maxDistance, layerMask, triggers);
+
+    /// <summary>Like Physics.SphereCastNonAlloc, but the cast continues through any open portal its middle enters.</summary>
+    public static int SphereCastNonAlloc(Ray ray, float radius, RaycastHit[] results, float maxDistance, int layerMask, QueryTriggerInteraction triggers) =>
+        Follow(ray, radius, results, maxDistance, layerMask, triggers);
+
+    private static int Cast(Ray ray, float radius, RaycastHit[] results, float maxDistance, int layerMask, QueryTriggerInteraction triggers) =>
+        radius > 0f
+            ? Physics.SphereCastNonAlloc(ray, radius, results, maxDistance, layerMask, triggers)
+            : Physics.RaycastNonAlloc(ray, results, maxDistance, layerMask, triggers);
+
+    private static int Follow(Ray ray, float radius, RaycastHit[] results, float maxDistance, int layerMask, QueryTriggerInteraction triggers)
     {
         throughPortal.Clear();
-        int count = Physics.RaycastNonAlloc(ray, results, maxDistance, layerMask, triggers);
+        int count = Cast(ray, radius, results, maxDistance, layerMask, triggers);
         Vector3 origin = ray.origin;
         Vector3 direction = ray.direction.normalized;
         if (!TryFindEntry(origin, direction, maxDistance, null, out Portal portal, out float t))
@@ -51,13 +63,18 @@ internal static class PortalShots
         {
             // This segment's hits up to the portal count (someone standing in front of it is hit first); the wall it
             // sits on and anything behind it don't.
-            int segmentCount = firstSegment ? count : Physics.RaycastNonAlloc(new Ray(origin, direction), segment, remaining, layerMask, triggers);
+            int segmentCount = firstSegment ? count : Cast(new Ray(origin, direction), radius, segment, remaining, layerMask, triggers);
             RaycastHit[] source = firstSegment ? results : segment;
             float limit = portal != null ? t - WallTolerance : float.MaxValue;
             for (int i = 0; i < segmentCount; i++)
             {
                 RaycastHit hit = source[i];
                 if (hit.distance >= limit)
+                {
+                    continue;
+                }
+                // A fat cast touches the wall around a portal's opening before its middle gets to the portal.
+                if (radius > 0f && PortalProjectiles.IsPortalWallAt(hit.collider, hit.distance <= 0f ? origin : hit.point))
                 {
                     continue;
                 }
@@ -286,7 +303,7 @@ internal static class GunshotHitPatch
 {
     private static void Prefix(Hittable __instance, ItemType itemType, ref Vector3 direction, ref Vector3 localOrigin)
     {
-        if (itemType == ItemType.DuelingPistol || itemType == ItemType.ElephantGun)
+        if (itemType == ItemType.DuelingPistol || itemType == ItemType.ElephantGun || itemType == ItemType.Railgun)
         {
             PortalShots.AdjustHit(__instance, ref direction, ref localOrigin);
         }

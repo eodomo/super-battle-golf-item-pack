@@ -28,6 +28,7 @@ internal static class SaberThrows
         public Transform spinner;
         public Vector3 position;
         public Vector3 direction;
+        public Vector3 heading;   // which way it's moving on the way back
         public float traveled;
         public bool returning;
         public float startTime;
@@ -160,7 +161,10 @@ internal static class SaberThrows
             if (!flight.returning)
             {
                 float step = Speed * dt;
-                if (local && Physics.Raycast(flight.position, flight.direction, out RaycastHit wall, step + 0.3f, WorldMask.Solid, QueryTriggerInteraction.Ignore))
+                // The wall a portal sits on doesn't stop a saber that's flying into the portal.
+                bool portalAhead = PortalShots.TryFindEntry(flight.position, flight.direction, step + 0.4f, null, out _, out float toPortal);
+                if (local && Physics.Raycast(flight.position, flight.direction, out RaycastHit wall, step + 0.3f, WorldMask.Solid, QueryTriggerInteraction.Ignore)
+                    && !(portalAhead && wall.distance >= toPortal - 0.1f))
                 {
                     // Bounced off a wall: head back from here.
                     flight.position = wall.point - flight.direction * 0.3f;
@@ -169,15 +173,15 @@ internal static class SaberThrows
                 }
                 else
                 {
-                    flight.position += flight.direction * step;
+                    PortalPaths.Advance(ref flight.position, ref flight.direction, step);
                     flight.traveled += step;
                     flight.returning = flight.traveled >= LightsaberItem.ThrowRange.Value;
                 }
             }
             else
             {
-                Vector3 toHand = SlingerWebs.HandOf(flight.thrower) - flight.position;
-                float distance = toHand.magnitude;
+                Vector3 hand = SlingerWebs.HandOf(flight.thrower);
+                float distance = (hand - flight.position).magnitude;
                 if (distance < CatchDistance || Time.time - flight.startTime > MaxFlightSeconds)
                 {
                     ended.Add(flight.netId);
@@ -187,7 +191,23 @@ internal static class SaberThrows
                     }
                     continue;
                 }
-                flight.position += toHand / distance * Mathf.Min(distance, ReturnSpeed * dt);
+                // Comes home through a portal when that's the shorter way.
+                Vector3 aim = PortalPaths.Waypoint(flight.position, hand, out bool viaPortal);
+                Vector3 toAim = aim - flight.position;
+                float aimDistance = toAim.magnitude;
+                if (aimDistance > 0.001f)
+                {
+                    flight.heading = toAim / aimDistance;
+                    if (viaPortal)
+                    {
+                        // A little past the portal's surface, so it really goes in.
+                        PortalPaths.Advance(ref flight.position, ref flight.heading, Mathf.Min(aimDistance + 0.05f, ReturnSpeed * dt));
+                    }
+                    else
+                    {
+                        flight.position += flight.heading * Mathf.Min(distance, ReturnSpeed * dt);
+                    }
+                }
             }
             flight.spin += SpinDegreesPerSecond * dt;
             flight.root.transform.position = flight.position;
@@ -228,7 +248,7 @@ internal static class SaberThrows
             {
                 point = overlap[i].ClosestPoint(flight.position);
             }
-            Vector3 travel = flight.returning ? SlingerWebs.HandOf(flight.thrower) - flight.position : flight.direction;
+            Vector3 travel = flight.returning ? flight.heading : flight.direction;
             Vector3 direction = Vector3.ProjectOnPlane(travel, Vector3.up);
             direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
             LightsaberItem.ThrownHit(localInventory, hittable, point, direction, flight.position - direction, flight.color);
