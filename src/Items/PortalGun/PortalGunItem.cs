@@ -58,7 +58,7 @@ internal class PortalGunItem : CustomItem
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the portal gun's shots (0-1). Local setting.");
         PortalWidth = Bind("PortalWidth", 1.5f, "Portal width (meters).");
         PortalHeight = Bind("PortalHeight", 2.3f, "Portal height (meters).");
-        MaxRange = Bind("MaxRange", 120f, "How far the gun can place portals (meters).");
+        MaxRange = Bind("MaxRange", 500f, "How far the gun can place portals (meters).");
         SeeThrough = Bind("SeeThrough", true, "Show the view through linked portals. Turn off if it costs too much frame rate. Local setting.");
         RenderScale = Bind("RenderScale", 0.75f, "Resolution of the view through portals relative to the screen (0.25-1). Local setting.");
     }
@@ -110,6 +110,7 @@ internal class PortalGunItem : CustomItem
     private static IEnumerator FireRoutine(PlayerInventory inventory, byte color)
     {
         PlayerInfo player = inventory.PlayerInfo;
+        ItemUse.BreakStealth(inventory);
         inventory.SetCurrentItemUse(ItemUseType.Regular);
         player.Movement.AlignWithCameraImmediately();
         Vector3 muzzle = player.RightHandEquipmentSwitcher.transform.position;

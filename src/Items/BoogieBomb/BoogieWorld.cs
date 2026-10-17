@@ -7,15 +7,15 @@ using UnityEngine.SceneManagement;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Boogie bombs on every client: a spinning disco ball bounces along a path every client computes the same way,
-/// pops shortly after it lands, and leaves a disco party (spinning colored lights, confetti, music) for as long
+/// Boogie bombs on every client: a spinning disco ball flies along a path every client computes the same way,
+/// pops the moment it hits anything (or touches another player on the way), and leaves a disco party (spinning colored lights, confetti, music) for as long
 /// as the dancing lasts. The local player dances if they were inside the blast.
 /// </summary>
 internal static class BoogieWorld
 {
     private const float SimStep = 0.01f;
     private const float MaxFlight = 3.5f;
-    private const float FuseAfterLanding = 0.6f;
+    private const float ContactRadius = 1.2f; // it also goes off when it touches someone in flight
 
     private class Bomb
     {
@@ -65,7 +65,7 @@ internal static class BoogieWorld
         }
         var bomb = new Bomb { id = id, ownerNetId = ownerNetId, go = go, spawnTime = Time.time };
         bomb.path = ComputePath(origin, velocity, out float landTime);
-        bomb.explodeAt = Mathf.Min(landTime + FuseAfterLanding, MaxFlight);
+        bomb.explodeAt = Mathf.Min(landTime, MaxFlight);
         bombs[id] = bomb;
     }
 
@@ -87,7 +87,7 @@ internal static class BoogieWorld
                 ? to // came out of a portal: no sliding across the map in between
                 : Vector3.Lerp(from, to, t / SimStep - Mathf.Floor(t / SimStep));
             bomb.go.transform.rotation = Quaternion.Euler(0f, t * 400f, Mathf.Sin(t * 9f) * 12f);
-            if (t >= bomb.explodeAt)
+            if (t >= bomb.explodeAt || TouchesPlayer(bomb))
             {
                 Explode(bomb, bomb.go.transform.position);
                 finished.Add(bomb.id);
@@ -126,6 +126,28 @@ internal static class BoogieWorld
             ItemAudio.SetVolume(party.music, MusicVolume(party.position) * Mathf.Clamp01((party.until - now) / 0.8f));
         }
         BoogieDance.Tick();
+    }
+
+    private static readonly Collider[] contacts = new Collider[16];
+
+    /// <summary>Whether the bomb is touching someone other than the thrower (so it goes off on them instead of flying past).</summary>
+    private static bool TouchesPlayer(Bomb bomb)
+    {
+        LayerSettings layers = GameManager.LayerSettings;
+        if (layers == null)
+        {
+            return false;
+        }
+        int count = Physics.OverlapSphereNonAlloc(bomb.go.transform.position, ContactRadius, contacts, layers.PlayersMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+        {
+            PlayerInfo player = contacts[i].GetComponentInParent<PlayerInfo>();
+            if (player != null && player.netId != bomb.ownerNetId && player.Movement != null && player.Movement.IsVisible)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void Explode(Bomb bomb, Vector3 position)
@@ -250,7 +272,7 @@ internal static class BoogieWorld
         }
     }
 
-    /// <summary>Fixed-step bouncing path against static geometry; returns when it settles (or times out).</summary>
+    /// <summary>Fixed-step flight path against static geometry; returns at the first impact (or when it times out).</summary>
     private static List<Vector3> ComputePath(Vector3 start, Vector3 velocity, out float landTime)
     {
         var path = new List<Vector3> { start };
@@ -286,29 +308,13 @@ internal static class BoogieWorld
             }
             if (blocked)
             {
-                if (landTime < 0f && hit.normal.y > 0.5f)
-                {
-                    landTime = i * SimStep;
-                }
-                // A little bouncy; on the ground it mostly stops sliding, so it ends up about where it landed.
-                Vector3 into = Vector3.Project(v, hit.normal);
-                Vector3 along = v - into;
-                v = -into * 0.35f + along * (hit.normal.y > 0.5f ? 0.2f : 0.5f);
-                position = hit.point + hit.normal * 0.15f;
-                if (v.magnitude < 0.6f && hit.normal.y > 0.5f)
-                {
-                    v = Vector3.zero; // settled
-                }
-            }
-            else
-            {
-                position = next;
-            }
-            path.Add(position);
-            if (v == Vector3.zero && landTime >= 0f && i * SimStep > landTime + FuseAfterLanding)
-            {
+                // It goes off on the first thing it hits: the ground, a wall, a tree...
+                path.Add(hit.point + hit.normal * 0.15f);
+                landTime = i * SimStep;
                 break;
             }
+            position = next;
+            path.Add(position);
         }
         if (landTime < 0f)
         {

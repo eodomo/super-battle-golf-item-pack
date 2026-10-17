@@ -6,9 +6,9 @@ using UnityEngine;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Captain America's shield, worn on the right hand facing out from the chest. It blocks a hit from in front of you
-/// (shots, swings, explosions, rockets, beams...). Use throws it (straight away, no wind-up) along your aim: it knocks
-/// out the first player it hits (or shoves a cart and knocks out whoever's in it) and comes back to your hand like a
+/// Captain America's shield, worn on the right hand facing out from the chest. It blocks any hit, from any direction
+/// (shots, swings, explosions, mines, rockets, beams, freezes, even a railgun's vaporizing). Use throws it (straight away,
+/// no wind-up) along your aim: it knocks out the first player it hits (or shoves a cart and knocks out whoever's in it) and comes back to your hand like a
 /// boomerang off whatever it hits (a player, a cart, a wall or the ground). It has one charge: a block or a throw that hits
 /// someone or a cart uses it up; bouncing off the world is free, but a throw that hits nothing at all is gone for good.
 /// </summary>
@@ -33,7 +33,6 @@ internal class CapShieldItem : CustomItem
     protected override float DefaultHeldScale => 1.04f;
 
     internal static ConfigEntry<float> ThrowRange;
-    internal static ConfigEntry<float> BlockAngle;
     internal static ConfigEntry<float> SoundVolume;
 
     public CapShieldItem() => Instance = this;
@@ -41,7 +40,6 @@ internal class CapShieldItem : CustomItem
     protected override void BindConfig()
     {
         ThrowRange = Bind("ThrowRange", 150f, "How far a thrown shield can fly (meters). It only comes back off something it hits; if it hits nothing in this distance, it's lost.");
-        BlockAngle = Bind("BlockAngle", 70f, "How far to the side of straight ahead (degrees) a hit can come from and still be blocked.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the throw, clang and catch (0-1). Local setting.");
     }
 
@@ -71,6 +69,7 @@ internal class CapShieldItem : CustomItem
             yield break;
         }
         PlayerInfo player = inventory.PlayerInfo;
+        ItemUse.BreakStealth(inventory);
         player.Movement.AlignWithCameraImmediately();
         inventory.SetCurrentItemUse(ItemUseType.Regular); // the freeze bomb's throw animation, played as it flies
 
@@ -103,30 +102,33 @@ internal class CapShieldItem : CustomItem
         }
     }
 
-    /// <summary>
-    /// On the victim's client, from <see cref="ShieldKnockOutPatch"/>: whether their shield, held toward
-    /// <paramref name="source"/>, stops the hit. Uses up a charge, with a clang everyone hears.
-    /// </summary>
-    public static bool TryBlock(PlayerInfo victim, Vector3 source, KnockoutType knockoutType)
+    /// <summary>Whether this player is holding a charged shield they could block with (not out flying, not knocked out, not in a cart).</summary>
+    public static bool IsHoldingCharged(PlayerInfo player, out PlayerInventory inventory, out int slot)
     {
-        PlayerInventory inventory = victim.Inventory;
+        inventory = player.Inventory;
+        slot = -1;
         if (inventory == null || !ItemCatalog.TryGet(inventory.GetEffectivelyEquippedItem(), out CustomItem item) || item is not CapShieldItem
-            || CapShieldThrows.LocalActive || victim.Movement.IsKnockedOutOrRecovering || victim.ActiveGolfCartSeat.IsValid())
+            || CapShieldThrows.IsThrown(player.netId) || player.Movement.IsKnockedOutOrRecovering || player.ActiveGolfCartSeat.IsValid())
         {
             return false;
         }
-        int slot = inventory.EquippedItemIndex;
-        if (inventory.GetEffectiveSlot(slot).remainingUses <= 0)
+        slot = inventory.EquippedItemIndex;
+        return inventory.GetEffectiveSlot(slot).remainingUses > 0;
+    }
+
+    /// <summary>
+    /// On the victim's client, from <see cref="ShieldKnockOutPatch"/> and friends: whether their held shield stops the
+    /// hit, whichever way it comes from. Uses up a charge, with a clang everyone hears.
+    /// </summary>
+    public static bool TryBlock(PlayerInfo victim, KnockoutType knockoutType)
+    {
+        // A ball coming home onto your own head isn't an attack.
+        if (knockoutType == KnockoutType.ReturnedBall || !IsHoldingCharged(victim, out PlayerInventory inventory, out int slot))
         {
             return false;
         }
         Vector3 chest = victim.transform.position + Vector3.up * 1f;
         Vector3 forward = Vector3.ProjectOnPlane(victim.transform.forward, Vector3.up).normalized;
-        Vector3 toSource = source - chest;
-        if (toSource.sqrMagnitude < 0.0001f || Vector3.Angle(forward, toSource) > BlockAngle.Value)
-        {
-            return false;
-        }
         ItemUse.ConsumeUseAt(inventory, slot);
         CapShieldNet.SendBlock(chest + forward * 0.5f);
         if (inventory.GetEffectiveSlot(slot).remainingUses <= 0 && !inventory.IsUsingItemAtAll)

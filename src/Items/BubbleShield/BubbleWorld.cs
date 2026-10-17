@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Mirror;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -8,7 +9,7 @@ namespace ItemPack.Items;
 /// <summary>
 /// Bubble shields on every client: the device on the ground and its glowing honeycomb dome, which pops up, hums,
 /// and collapses when its time is up. <see cref="Blocks"/> decides whether a dome stands between a
-/// victim and an attack.
+/// victim and an attack, and <see cref="FixedTick"/> bounces golf balls off its edge.
 /// </summary>
 internal static class BubbleWorld
 {
@@ -130,6 +131,105 @@ internal static class BubbleWorld
             UnlitMaterials.SetColor(bubble.material, new Color(c.r, c.g, c.b, 1f));
             bubble.light.intensity = 2.5f * glow * Mathf.Clamp01(size);
             ItemAudio.SetVolume(bubble.hum, Volume(bubble.center, 0.35f));
+        }
+    }
+
+    // ---- golf balls can't pass through the dome's edge ----
+
+    private const float BallBounciness = 0.6f;
+    private const float ShellReach = 4f;     // balls this far from the edge are tracked (more than a fast ball moves in a step)
+    private const float ShellMargin = 0.04f; // how far off the edge a bounced ball is put
+
+    private static readonly Collider[] nearBalls = new Collider[64];
+    private static readonly Dictionary<Rigidbody, Vector3> lastBallPosition = new();
+    private static readonly HashSet<Rigidbody> ballsSeen = new();
+    private static readonly List<Rigidbody> ballsGone = new();
+
+    /// <summary>
+    /// Every physics step: a golf ball whose path crossed a dome's edge since the last step is bounced back to the side it
+    /// came from (the host moves balls, and clients copy it for the balls they simulate, like portals do).
+    /// </summary>
+    public static void FixedTick()
+    {
+        LayerSettings layers = GameManager.LayerSettings;
+        if (bubbles.Count == 0 || layers == null)
+        {
+            lastBallPosition.Clear();
+            return;
+        }
+        int mask = layers.BallMask | layers.DynamicBallMask;
+        ballsSeen.Clear();
+        foreach (Bubble bubble in bubbles)
+        {
+            if (!IsUp(bubble))
+            {
+                continue;
+            }
+            int count = Physics.OverlapSphereNonAlloc(bubble.center, bubble.radius + ShellReach, nearBalls, mask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Rigidbody body = nearBalls[i].attachedRigidbody;
+                if (body == null || body.isKinematic || !body.TryGetComponent(out Entity entity)
+                    || !(NetworkServer.active || entity.IsSimulatingRigidbody()))
+                {
+                    continue;
+                }
+                ballsSeen.Add(body);
+                if (lastBallPosition.TryGetValue(body, out Vector3 before))
+                {
+                    BounceOffShell(bubble, body, before);
+                }
+                lastBallPosition[body] = body.position;
+            }
+        }
+        // Forget balls that left every dome's neighborhood.
+        ballsGone.Clear();
+        foreach (Rigidbody body in lastBallPosition.Keys)
+        {
+            if (body == null || !ballsSeen.Contains(body))
+            {
+                ballsGone.Add(body);
+            }
+        }
+        foreach (Rigidbody body in ballsGone)
+        {
+            lastBallPosition.Remove(body);
+        }
+    }
+
+    private static void BounceOffShell(Bubble bubble, Rigidbody body, Vector3 before)
+    {
+        Vector3 now = body.position;
+        float outsideBefore = (before - bubble.center).magnitude - bubble.radius;
+        float outsideNow = (now - bubble.center).magnitude - bubble.radius;
+        if (outsideBefore * outsideNow >= 0f)
+        {
+            return; // still on the same side
+        }
+        // Where the step's path met the dome's surface: |before + t * step - center| = radius.
+        Vector3 step = now - before;
+        Vector3 offset = before - bubble.center;
+        float a = step.sqrMagnitude;
+        float b = 2f * Vector3.Dot(offset, step);
+        float c = offset.sqrMagnitude - bubble.radius * bubble.radius;
+        float discriminant = b * b - 4f * a * c;
+        if (a < 1e-8f || discriminant < 0f)
+        {
+            return;
+        }
+        float root = Mathf.Sqrt(discriminant);
+        float t = outsideBefore < 0f ? (-b + root) / (2f * a) : (-b - root) / (2f * a); // leaving: the far crossing; entering: the near one
+        Vector3 hit = before + step * Mathf.Clamp01(t);
+        Vector3 normal = (hit - bubble.center).normalized; // outward
+        Vector3 velocity = body.linearVelocity;
+        float into = Vector3.Dot(velocity, normal);
+        // Put the ball back on its own side, moving away from the edge.
+        body.position = hit + normal * (outsideBefore < 0f ? -ShellMargin : ShellMargin);
+        body.linearVelocity = velocity - (1f + BallBounciness) * into * normal;
+        bubble.flashUntil = Time.time + 0.3f;
+        if (Mathf.Abs(into) > 2f)
+        {
+            BubbleSounds.PlayBlock(Volume(hit, 0.6f));
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using BepInEx.Configuration;
+using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,8 +9,8 @@ namespace ItemPack.Items;
 
 /// <summary>
 /// Kamehameha (Dragon Ball): hold left click to gather energy, release to fire a beam where you're aiming.
-/// The longer the charge (up to 3 seconds), the wider the beam and the harder it launches everyone it hits.
-/// The beam stops at walls and terrain and blasts golf balls along with it.
+/// The longer the charge (up to 3 seconds), the wider the beam and the harder it blasts golf balls.
+/// Everyone it hits is vaporized like by the railgun and sent back to their spawn. The beam stops at walls and terrain.
 /// </summary>
 internal class KamehamehaItem : CustomItem
 {
@@ -52,8 +53,8 @@ internal class KamehamehaItem : CustomItem
         MaxRange = Bind("MaxRange", 90f, "Beam length (meters); walls and terrain stop it sooner.");
         MinRadius = Bind("MinRadius", 0.6f, "Beam radius with no charge (meters).");
         MaxRadius = Bind("MaxRadius", 2.2f, "Beam radius at full charge (meters).");
-        MinLaunch = Bind("MinLaunch", 14f, "Launch speed for players hit with no charge.");
-        MaxLaunch = Bind("MaxLaunch", 40f, "Launch speed for players hit at full charge.");
+        MinLaunch = Bind("MinLaunch", 14f, "Launch speed for golf balls hit with no charge.");
+        MaxLaunch = Bind("MaxLaunch", 40f, "Launch speed for golf balls hit at full charge.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the charge and blast (0-1). Local setting.");
     }
 
@@ -109,6 +110,7 @@ internal class KamehamehaItem : CustomItem
         if (!charging && Mouse.current.leftButton.wasPressedThisFrame && OwnInput.CanUse(inventory))
         {
             charging = true;
+            ItemUse.BreakStealth(inventory);
             chargeStart = Time.time;
             inventory.SetCurrentItemUse(ItemUseType.Regular); // hands up
             KameEffects.SetCharging(inventory.PlayerInfo.netId, true);
@@ -154,22 +156,33 @@ internal class KamehamehaItem : CustomItem
         float radius = Mathf.Lerp(MinRadius.Value, MaxRadius.Value, charge);
         float power = Mathf.Lerp(MinLaunch.Value, MaxLaunch.Value, charge);
 
-        // Everyone in the beam (except us) gets launched along it.
-        var targets = new List<uint>();
+        // Everyone in the beam (except us) gets hit like by the railgun: vaporized and sent back to their spawn.
+        var victims = new List<(Hittable hittable, Vector3 point, float distance)>();
+        var seen = new HashSet<uint>();
         int count = Physics.SphereCastNonAlloc(origin - direction * radius, radius, direction, hits, length + radius,
             GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < count; i++)
         {
             PlayerInfo target = hits[i].collider.GetComponentInParent<PlayerInfo>();
-            if (target != null && target != player && !targets.Contains(target.netId))
+            if (target != null && target != player && seen.Add(target.netId))
             {
-                targets.Add(target.netId);
+                victims.Add((target.AsHittable, target.transform.position + Vector3.up, Mathf.Max(0f, hits[i].distance - radius)));
             }
         }
 
-        ItemUse.ConsumeUse(inventory);
+        ItemUse.BreakStealth(inventory);
+        ulong useHash = inventory.GetEquippedItemUseHash();
+        inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
+        ItemUseId useId = inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun);
+        foreach ((Hittable hittable, Vector3 point, float distance) in victims)
+        {
+            hittable.HitWithItem(ItemType.Railgun, useId, hittable.transform.InverseTransformPoint(point), direction,
+                hittable.transform.InverseTransformPoint(origin), distance, inventory, isReflected: false, isInSpecialState: false,
+                canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
+        }
+        inventory.CmdValidateAndConsumeItemUse(useHash); // after the hits, like the guns
         KameEffects.Fire(player.netId, origin, direction, length, radius);
-        KameNet.SendFire(origin, direction, length, radius, power, targets);
+        KameNet.SendFire(origin, direction, length, radius, power);
         inventory.StartCoroutine(FinishAfter(inventory, 0.8f));
     }
 

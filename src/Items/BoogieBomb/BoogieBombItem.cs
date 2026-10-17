@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Boogie Bomb (Fortnite): throw the disco ball; it lands where the crosshair points (and goes through portals). It bounces, pops, and everyone caught in the blast does their victory dance for a few seconds,
+/// Boogie Bomb (Fortnite): throw the disco ball; it flies where the crosshair points (and goes through portals) and pops on impact, or as soon as it touches another player. Everyone caught in the blast does their victory dance for a few seconds,
 /// unable to move or use items (they can still look around). Electromagnet shields protect you.
 /// </summary>
 internal class BoogieBombItem : CustomItem
@@ -36,7 +36,7 @@ internal class BoogieBombItem : CustomItem
 
     protected override void BindConfig()
     {
-        Radius = Bind("Radius", 6f, "Blast radius (meters): everyone inside dances.");
+        Radius = Bind("Radius", 10f, "Blast radius (meters): everyone inside dances.");
         DanceSeconds = Bind("DanceSeconds", 5f, "How long people dance.");
         ThrowSpeed = Bind("ThrowSpeed", 26f, "Throw speed (m/s). It's thrown on the flattest arc that lands where you aim.");
         AffectThrower = Bind("AffectThrower", true, "Whether the thrower dances too if they're caught in their own blast.");

@@ -113,6 +113,7 @@ internal class DirtBlocksItem : CustomItem
         }
         else if ((Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.rightButton.wasPressedThisFrame) && OwnInput.CanUse(inventory))
         {
+            ItemUse.BreakStealth(inventory);
             building = true;
             secondsLeft = BuildSeconds.Value;
         }

@@ -20,24 +20,9 @@ public struct KameFireMsg : NetworkMessage
     public float power;
 }
 
-public struct KameHitRequest : NetworkMessage
-{
-    public uint[] targets;
-    public Vector3 direction;
-    public float power;
-}
-
-public struct KameHitMsg : NetworkMessage
-{
-    public uint shooterNetId;
-    public uint targetNetId;
-    public Vector3 direction;
-    public float power;
-}
-
 /// <summary>
-/// The shooter's client works out who the beam hits; the host relays the charge, the beam and the hits.
-/// Each hit player's own client knocks itself out (players own their movement). The host pushes balls.
+/// The host relays the charge and the beam, and pushes golf balls along the beam (it simulates balls). Whoever the beam
+/// hits is handled by the game's own railgun hit, sent from the shooter's client (see <see cref="KamehamehaItem"/>).
 /// </summary>
 internal static class KameNet
 {
@@ -59,28 +44,6 @@ internal static class KameNet
             playerNetId = r.ReadUInt(), origin = r.ReadVector3(), direction = r.ReadVector3(),
             length = r.ReadFloat(), radius = r.ReadFloat(), power = r.ReadFloat(),
         };
-        Writer<KameHitRequest>.write = (w, m) =>
-        {
-            w.WriteInt(m.targets.Length);
-            foreach (uint t in m.targets)
-            {
-                w.WriteUInt(t);
-            }
-            w.WriteVector3(m.direction);
-            w.WriteFloat(m.power);
-        };
-        Reader<KameHitRequest>.read = r =>
-        {
-            int n = Mathf.Clamp(r.ReadInt(), 0, 32);
-            var targets = new uint[n];
-            for (int i = 0; i < n; i++)
-            {
-                targets[i] = r.ReadUInt();
-            }
-            return new KameHitRequest { targets = targets, direction = r.ReadVector3(), power = r.ReadFloat() };
-        };
-        Writer<KameHitMsg>.write = (w, m) => { w.WriteUInt(m.shooterNetId); w.WriteUInt(m.targetNetId); w.WriteVector3(m.direction); w.WriteFloat(m.power); };
-        Reader<KameHitMsg>.read = r => new KameHitMsg { shooterNetId = r.ReadUInt(), targetNetId = r.ReadUInt(), direction = r.ReadVector3(), power = r.ReadFloat() };
     }
 
     public static void RegisterServerHandlers()
@@ -94,7 +57,6 @@ internal static class KameNet
             }
         });
         NetworkServer.RegisterHandler<KameFireMsg>(OnServerFire);
-        NetworkServer.RegisterHandler<KameHitRequest>(OnServerHit);
     }
 
     public static void RegisterClientHandlers()
@@ -113,7 +75,6 @@ internal static class KameNet
                 KameEffects.Fire(msg.playerNetId, msg.origin, msg.direction, msg.length, msg.radius);
             }
         });
-        NetworkClient.ReplaceHandler<KameHitMsg>(OnClientHit);
     }
 
     public static void ResetServer() => lastFire.Clear();
@@ -126,17 +87,13 @@ internal static class KameNet
         }
     }
 
-    public static void SendFire(Vector3 origin, Vector3 direction, float length, float radius, float power, List<uint> targets)
+    public static void SendFire(Vector3 origin, Vector3 direction, float length, float radius, float power)
     {
         if (!NetworkClient.active)
         {
             return;
         }
         NetworkClient.Send(new KameFireMsg { origin = origin, direction = direction, length = length, radius = radius, power = power });
-        if (targets.Count > 0)
-        {
-            NetworkClient.Send(new KameHitRequest { targets = targets.ToArray(), direction = direction, power = power });
-        }
     }
 
     private static void OnServerFire(NetworkConnectionToClient conn, KameFireMsg msg)
@@ -168,46 +125,6 @@ internal static class KameNet
             {
                 body.AddForce((msg.direction + Vector3.up * 0.3f) * Mathf.Min(msg.power, MaxPower), ForceMode.VelocityChange);
             }
-        }
-    }
-
-    private static void OnServerHit(NetworkConnectionToClient conn, KameHitRequest msg)
-    {
-        if (conn.identity == null || msg.targets == null)
-        {
-            return;
-        }
-        foreach (uint target in msg.targets)
-        {
-            if (NetworkServer.spawned.TryGetValue(target, out NetworkIdentity identity) && identity != null
-                && (identity.transform.position - conn.identity.transform.position).sqrMagnitude < Mathf.Pow(KamehamehaItem.MaxRange.Value + 10f, 2f))
-            {
-                NetworkServer.SendToAll(new KameHitMsg
-                {
-                    shooterNetId = conn.identity.netId,
-                    targetNetId = target,
-                    direction = msg.direction.normalized,
-                    power = Mathf.Clamp(msg.power, 0f, MaxPower),
-                });
-            }
-        }
-    }
-
-    private static void OnClientHit(KameHitMsg msg)
-    {
-        PlayerInfo local = GameManager.LocalPlayerInfo;
-        if (local == null || local.netId != msg.targetNetId || local.Movement == null)
-        {
-            return;
-        }
-        PlayerInfo shooter = NetworkClient.spawned.TryGetValue(msg.shooterNetId, out NetworkIdentity s) && s != null ? s.GetComponent<PlayerInfo>() : null;
-        Vector3 launch = msg.direction * msg.power + Vector3.up * (msg.power * 0.35f);
-        Vector3 localOrigin = local.transform.InverseTransformPoint(local.transform.position - msg.direction * 3f);
-        bool knockedOut = local.Movement.TryKnockOut(shooter, KnockoutType.Rocket, isLegSweep: false, localOrigin, 0f, launch,
-            ElectromagnetShieldHitBlockType.FullyBlocked, ItemUseId.Invalid, fromSpecialState: false, canFallbackToUnground: true, out _, out _);
-        if (knockedOut)
-        {
-            local.Rigidbody.AddForce(launch, ForceMode.VelocityChange);
         }
     }
 

@@ -218,9 +218,9 @@ internal static class SaberNet
             passenger.ExitGolfCart(GolfCartExitType.Knockout);
             Hittable hittable = passenger.AsEntity.AsHittable;
             Vector3 direction = Vector3.ProjectOnPlane(passenger.transform.position - attacker.transform.position, Vector3.up).normalized;
-            hittable.HitWithItem(ItemType.DuelingPistol, attacker.Inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
+            hittable.HitWithItem(ItemType.Railgun, attacker.Inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun),
                 hittable.transform.InverseTransformPoint(cut.point), direction == Vector3.zero ? Vector3.up : direction,
-                hittable.transform.InverseTransformPoint(attacker.transform.position), hittable.ItemSettings.DuelingPistolMinKnockbackDistance,
+                hittable.transform.InverseTransformPoint(attacker.transform.position), Vector3.Distance(cut.point, attacker.transform.position),
                 attacker.Inventory, isReflected: false, isInSpecialState: false, canHitWithNoUser: true, hitTimestamp: NetworkTime.time);
             NetworkServer.SendToAll(new SaberCut { targetNetId = passenger.netId, point = cut.point, normal = Vector3.up, color = cut.color });
         }

@@ -16,9 +16,9 @@ internal enum SaberColor : byte
 
 /// <summary>
 /// Lightsaber: a blue, green or red one at random. Use to swing (aim to swing where you're looking). Anyone it
-/// connects with is knocked out and falls apart in two at the cut; golf carts are cut in half and destroyed
-/// (their passengers get knocked out too). Swing as often as you like; only a hit uses it up. Aim (right click) and use to throw it:
-/// it spins out along your aim and comes back like a boomerang if it doesn't hit anyone.
+/// connects with is killed (sent back to their spawn, like a railgun hit) and falls apart in two at the cut; golf
+/// carts are cut in half and destroyed (their passengers are killed too). Swing as often as you like; only a hit uses
+/// it up. Aim (right click) and use to throw it: it spins out along your aim and comes back like a boomerang if it doesn't hit anyone.
 ///
 /// The three colors are three item types that share one name, settings section and item box entry, so a pickup's
 /// color is part of the item itself: everyone sees the same color, and a dropped saber keeps it.
@@ -89,7 +89,7 @@ internal class LightsaberItem : CustomItem
             return;
         }
         Reach = Bind("Reach", 2.6f, "How far a swing reaches (meters).");
-        ThrowRange = Bind("ThrowRange", 20f, "How far a thrown saber flies before it comes back (meters).");
+        ThrowRange = Bind("ThrowRange", 40f, "How far a thrown saber flies before it comes back (meters).");
         BladeLength = Bind("BladeLength", 1f, "Length of the blade (meters).");
         CutCarts = Bind("CutCarts", true, "Whether swings cut golf carts in half (destroying them). Host setting.");
         PieceSeconds = Bind("PieceSeconds", 6f, "How long the two halves of a cut golf cart stay around. Local setting.");
@@ -291,6 +291,7 @@ internal class LightsaberItem : CustomItem
             yield break; // it's still flying
         }
         player.Movement.AlignWithCameraImmediately();
+        ItemUse.BreakStealth(inventory);
         // Alternate forehands and backhands, each picked at random from its kind.
         lastForehand = !lastForehand;
         int style = Random.Range(0, SaberBlade.StyleCount / 2) * 2 + (lastForehand ? 0 : 1);
@@ -366,9 +367,9 @@ internal class LightsaberItem : CustomItem
             if (hittable.AsEntity.IsPlayer)
             {
                 Vector3 direction = flat.sqrMagnitude > 0.01f ? flat.normalized : forward;
-                hittable.HitWithItem(ItemType.DuelingPistol, inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
+                hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun),
                     hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(chest),
-                    hittable.ItemSettings.DuelingPistolMinKnockbackDistance, inventory, isReflected: false, isInSpecialState: false,
+                    flat.magnitude, inventory, isReflected: false, isInSpecialState: false,
                     canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
             }
             SaberNet.RequestCut(hittable.netId, point, normal, (byte)Variant);
@@ -410,6 +411,7 @@ internal class LightsaberItem : CustomItem
     {
         PlayerInfo player = inventory.PlayerInfo;
         player.Movement.AlignWithCameraImmediately();
+        ItemUse.BreakStealth(inventory);
         inventory.SetCurrentItemUse(ItemUseType.Regular); // the freeze bomb's throw animation, played as it flies (no wind-up)
 
         Camera cam = GameManager.Camera;
@@ -446,9 +448,9 @@ internal class LightsaberItem : CustomItem
         inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
         if (hittable.AsEntity.IsPlayer)
         {
-            hittable.HitWithItem(ItemType.DuelingPistol, inventory.IncrementAndGetCurrentItemUseId(ItemType.DuelingPistol),
+            hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun),
                 hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(source),
-                hittable.ItemSettings.DuelingPistolMinKnockbackDistance, inventory, isReflected: false, isInSpecialState: false,
+                (point - source).magnitude, inventory, isReflected: false, isInSpecialState: false,
                 canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
         }
         // The spinning blade cuts flat across.

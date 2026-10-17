@@ -8,7 +8,7 @@ namespace ItemPack.Items;
 /// Bubble Shield (Halo 3): plant the device at your feet and it throws up a glowing dome for a few seconds. Nothing
 /// gets through its edge either way: shots, rockets, explosions, beams, swings and freezes from outside can't knock out
 /// anyone inside, and nobody inside can knock out anyone outside. Anyone can walk in and out, and whoever's inside
-/// can still fight each other. See <see cref="ShieldKnockOutPatch"/>.
+/// can still fight each other. Golf balls bounce off its edge too, from either side. See <see cref="ShieldKnockOutPatch"/>.
 /// </summary>
 internal class BubbleShieldItem : CustomItem
 {
@@ -76,4 +76,5 @@ internal class BubbleShieldItem : CustomItem
     public override void OnStartClient() => BubbleNet.RegisterClientHandlers();
     public override void OnStopClient() => BubbleWorld.ClearAll();
     public override void Tick() => BubbleWorld.Tick();
+    public override void FixedTick() => BubbleWorld.FixedTick();
 }

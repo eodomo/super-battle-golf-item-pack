@@ -31,7 +31,7 @@ public struct PortalsCleared : NetworkMessage
 /// <summary>The host keeps the authoritative set of portals and relays placements to everyone.</summary>
 internal static class PortalNet
 {
-    private const float MaxPlaceDistance = 160f;
+    private const float MaxPlaceDistance = 600f;
     private const double MinPlaceInterval = 0.15;
 
     private static readonly Dictionary<(uint owner, byte color), PortalPlaced> serverPortals = new();

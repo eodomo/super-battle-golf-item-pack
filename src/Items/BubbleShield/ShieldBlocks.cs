@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Mirror;
 using UnityEngine;
 
 namespace ItemPack.Items;
@@ -6,7 +7,9 @@ namespace ItemPack.Items;
 /// <summary>
 /// Where the pack's shields stop hits: every knockout goes through <see cref="PlayerMovement.TryKnockOut"/> on the
 /// victim's own client (players own their movement), so a bubble shield between the victim and the attack, or
-/// Captain America's shield held toward it, turns it away there, with the game's "blocked" effect.
+/// a held Captain America's shield (from any direction), turns it away there, with the game's "blocked" effect.
+/// Instant eliminations (railgun, orbital laser, lightning) skip that check, so <see cref="ShieldEliminationPatch"/>
+/// handles those on the host.
 /// </summary>
 [HarmonyPatch(typeof(PlayerMovement), nameof(PlayerMovement.TryKnockOut))]
 internal static class ShieldKnockOutPatch
@@ -26,7 +29,7 @@ internal static class ShieldKnockOutPatch
             : hasAttacker ? responsiblePlayer.transform.position + Vector3.up * 0.9f
             : Vector3.zero;
         bool inBubble = BubbleWorld.Blocks(victim, hasAttacker ? responsiblePlayer : null, source, hasOrigin);
-        bool blocked = inBubble || ((hasOrigin || hasAttacker) && CapShieldItem.TryBlock(victim, source, knockoutType));
+        bool blocked = inBubble || CapShieldItem.TryBlock(victim, knockoutType);
         if (!blocked)
         {
             return true;
@@ -75,18 +78,52 @@ internal static class BubblePushCancelPatch
     }
 }
 
-/// <summary>Freeze bombs thrown across a bubble shield's edge don't freeze anyone either.</summary>
+/// <summary>
+/// Freeze bombs thrown across a bubble shield's edge, or at someone holding Captain America's shield, don't freeze anyone.
+/// The game asks on the host (for whoever was hit), which is where this decides; a shield's charge is used up by its owner's client.
+/// </summary>
 [HarmonyPatch(typeof(PlayerMovement), nameof(PlayerMovement.CanBeFrozenBy))]
 internal static class ShieldFreezePatch
 {
     private static bool Prefix(PlayerMovement __instance, PlayerInfo player, ref bool __result)
     {
-        if (!__instance.isLocalPlayer || player == null || player == __instance.PlayerInfo
-            || !BubbleWorld.Blocks(__instance.PlayerInfo, player, player.transform.position, false))
+        if (!NetworkServer.active || player == null || player == __instance.PlayerInfo)
         {
             return true;
         }
-        __result = false;
+        PlayerInfo victim = __instance.PlayerInfo;
+        if (BubbleWorld.Blocks(victim, player, player.transform.position, false))
+        {
+            __result = false;
+            return false;
+        }
+        if (CapShieldItem.IsHoldingCharged(victim, out _, out _))
+        {
+            CapShieldNet.SendBlockOrder(victim, KnockoutType.FreezeBomb);
+            __result = false;
+            return false;
+        }
+        return true;
+    }
+}
+
+/// <summary>
+/// The railgun, the orbital laser's center and a lightning strike's center eliminate on the host without going through a
+/// knockout check, so a shield can't turn them away on the victim's client. The host skips the elimination for someone
+/// holding a charged Captain America's shield, and tells that player's client to use the charge up.
+/// </summary>
+[HarmonyPatch(typeof(PlayerGolfer), "OnServerWasHitByItem")]
+internal static class ShieldEliminationPatch
+{
+    private static bool Prefix(PlayerGolfer __instance, ItemType itemType, float distance, bool isReflected, ProtectiveState protectiveState)
+    {
+        if (!itemType.TryGetEliminationReason(distance, isReflected, protectiveState, out EliminationReason reason, out _)
+            || (reason != EliminationReason.RailgunDirectHit && reason != EliminationReason.OrbitalLaserCenter && reason != EliminationReason.ThunderstormDirectHit)
+            || !CapShieldItem.IsHoldingCharged(__instance.PlayerInfo, out _, out _))
+        {
+            return true;
+        }
+        CapShieldNet.SendBlockOrder(__instance.PlayerInfo, KnockoutType.RailgunDirectHit);
         return false;
     }
 }

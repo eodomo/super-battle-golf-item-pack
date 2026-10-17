@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.9.2";
+    public const string Version = "0.9.3";
 
     internal static ManualLogSource Log;
 
@@ -97,7 +97,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 12;
+        const int ConfigVersion = 15;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -202,6 +202,21 @@ public class Plugin : BaseUnityPlugin
         {
             // The Web Slinger glove was too small in hand.
             WebSlingerItem.Instance.HeldScale.Value = (float)WebSlingerItem.Instance.HeldScale.DefaultValue;
+        }
+        if (stored.Value < 13)
+        {
+            // The thrown lightsaber flies twice as far.
+            LightsaberItem.ThrowRange.Value = (float)LightsaberItem.ThrowRange.DefaultValue;
+        }
+        if (stored.Value < 14)
+        {
+            // The portal gun reaches much further.
+            PortalGunItem.MaxRange.Value = (float)PortalGunItem.MaxRange.DefaultValue;
+        }
+        if (stored.Value < 15)
+        {
+            // The boogie bomb's blast is much bigger.
+            BoogieBombItem.Radius.Value = (float)BoogieBombItem.Radius.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

@@ -29,6 +29,12 @@ public struct CapBlocked : NetworkMessage
     public Vector3 position;
 }
 
+/// <summary>The host to the player whose shield just stopped an instant elimination: use the charge up (see <see cref="ShieldEliminationPatch"/>).</summary>
+public struct CapBlockOrder : NetworkMessage
+{
+    public byte reason;
+}
+
 /// <summary>
 /// The host relays the thrower's shield flights (thrown, turned back, gone) and blocks (for the clang), like the
 /// lightsaber's throws. Hits are checked by the thrower's client.
@@ -47,6 +53,8 @@ internal static class CapShieldNet
         Reader<CapBlockRequest>.read = r => new CapBlockRequest { position = r.ReadVector3() };
         Writer<CapBlocked>.write = (w, m) => w.WriteVector3(m.position);
         Reader<CapBlocked>.read = r => new CapBlocked { position = r.ReadVector3() };
+        Writer<CapBlockOrder>.write = (w, m) => w.WriteByte(m.reason);
+        Reader<CapBlockOrder>.read = r => new CapBlockOrder { reason = r.ReadByte() };
     }
 
     public static void RegisterServerHandlers()
@@ -83,6 +91,13 @@ internal static class CapShieldNet
     {
         NetworkClient.ReplaceHandler<CapThrowState>(CapShieldThrows.OnState);
         NetworkClient.ReplaceHandler<CapBlocked>(msg => CapShieldThrows.PlayBlock(msg.position));
+        NetworkClient.ReplaceHandler<CapBlockOrder>(msg =>
+        {
+            if (GameManager.LocalPlayerInfo != null)
+            {
+                CapShieldItem.TryBlock(GameManager.LocalPlayerInfo, (KnockoutType)msg.reason);
+            }
+        });
     }
 
     public static void ResetServer() => lastBlock.Clear();
@@ -92,6 +107,15 @@ internal static class CapShieldNet
         if (NetworkClient.active)
         {
             NetworkClient.Send(new CapThrowRequest { state = state, origin = origin, direction = direction });
+        }
+    }
+
+    /// <summary>Host: tells <paramref name="victim"/>'s client their shield stopped an instant elimination.</summary>
+    public static void SendBlockOrder(PlayerInfo victim, KnockoutType kind)
+    {
+        if (NetworkServer.active && victim.connectionToClient != null)
+        {
+            victim.connectionToClient.Send(new CapBlockOrder { reason = (byte)kind });
         }
     }
 

@@ -121,6 +121,7 @@ internal class WebSlingerItem : CustomItem
         }
         else if (Mouse.current.leftButton.wasPressedThisFrame && OwnInput.CanUse(inventory))
         {
+            ItemUse.BreakStealth(inventory);
             slinging = true;
             secondsLeft = SlingSeconds.Value;
         }
