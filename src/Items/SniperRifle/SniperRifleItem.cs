@@ -31,6 +31,15 @@ internal class SniperRifleItem : CustomItem
 
     protected override int DefaultUses => 1;
     protected override float DefaultHeldScale => 0.6f;
+    // The right hand holds the pistol grip (the model's origin is near the top of it), not the middle of the rifle.
+    public override Vector3? HeldGrip => new Vector3(0f, -0.05f, -0.17f);
+
+    public override GameObject CreateHeldModel(Transform parent, float scale)
+    {
+        GameObject model = base.CreateHeldModel(parent, scale);
+        model.AddComponent<SniperStance>();
+        return model;
+    }
 
     public const float ZoomInDuration = 0.08f;
 

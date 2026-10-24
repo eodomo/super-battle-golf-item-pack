@@ -101,10 +101,12 @@ internal static class PortalProjectiles
         if (entity.TryGetComponent(out Rocket rocket))
         {
             RocketPrevious(rocket) = position;
+            Plugin.Log.LogInfo($"Portal: a rocket went through a portal, now at {position}.");
         }
         else if (entity.TryGetComponent(out FreezeBomb freezeBomb))
         {
             FreezeBombPrevious(freezeBomb) = position;
+            Plugin.Log.LogInfo($"Portal: a freeze bomb went through a portal, now at {position}.");
         }
     }
 }

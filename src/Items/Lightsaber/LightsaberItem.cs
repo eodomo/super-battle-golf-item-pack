@@ -103,6 +103,42 @@ internal class LightsaberItem : CustomItem
         data.IsExplosive = false;
         data.CanHitProjectiles = false;
         data.CanUsageAffectBalls = false;
+        data.AnimatorOverrideController = WithSmokeBombStrafe(data.AnimatorOverrideController);
+    }
+
+    /// <summary>
+    /// The freeze bomb's animations with the strafing ones swapped for the smoke bomb's: holding aim makes the player
+    /// strafe (face the camera while moving), so aiming a throw takes the smoke bomb's stance, left arm forward and
+    /// right arm back.
+    /// </summary>
+    private static AnimatorOverrideController WithSmokeBombStrafe(AnimatorOverrideController freezeBomb)
+    {
+        if (freezeBomb == null || !GameManager.AllItems.TryGetItemData(ItemType.SmokeBomb, out ItemData smoke) || smoke.AnimatorOverrideController == null)
+        {
+            return freezeBomb;
+        }
+        var smokePairs = new List<KeyValuePair<AnimationClip, AnimationClip>>();
+        smoke.AnimatorOverrideController.GetOverrides(smokePairs);
+        var smokeClips = new Dictionary<string, AnimationClip>();
+        foreach (KeyValuePair<AnimationClip, AnimationClip> pair in smokePairs)
+        {
+            if (pair.Key != null && pair.Value != null)
+            {
+                smokeClips[pair.Key.name] = pair.Value;
+            }
+        }
+        var pairs = new List<KeyValuePair<AnimationClip, AnimationClip>>();
+        freezeBomb.GetOverrides(pairs);
+        for (int i = 0; i < pairs.Count; i++)
+        {
+            if (pairs[i].Key != null && pairs[i].Key.name.StartsWith("Player_Strafe") && smokeClips.TryGetValue(pairs[i].Key.name, out AnimationClip clip))
+            {
+                pairs[i] = new KeyValuePair<AnimationClip, AnimationClip>(pairs[i].Key, clip);
+            }
+        }
+        var own = new AnimatorOverrideController(freezeBomb.runtimeAnimatorController) { name = "Lightsaber animator override" };
+        own.ApplyOverrides(pairs);
+        return own;
     }
 
     protected override void RegisterMessages()

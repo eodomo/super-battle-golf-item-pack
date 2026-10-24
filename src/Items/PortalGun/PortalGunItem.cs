@@ -34,7 +34,7 @@ internal class PortalGunItem : CustomItem
     public override bool SuppressAiming => true;
 
     protected override int DefaultUses => 1;
-    protected override float DefaultHeldScale => 1f;
+    protected override float DefaultHeldScale => 1.7f;
 
     public static PortalGunItem Instance { get; private set; }
 

@@ -45,3 +45,18 @@ Code lives in `src/Cosmetics/`; `RangerSet.cs` is the worked example for a whole
 **Handy facts.** Variation `allowedTeams` limits colors in team matches (`Neither` = free-for-all only; red/blue map to the teams). Menu swatch color is `variation.menuColor`. Icons are sprites: render a PNG from Blender (`render_icon` in `common.py`) and load with `RangerIcons.FromFile`. Run `F9`/`F10` probes (`CosmeticsProbe*.cs`) to dump the game's bone lists, metadata, materials and export reference meshes/textures to `BepInEx\cosmetics_probe.txt` and `cosmetics_export\`.
 
 **Testing in game.** Start a game (the Driving Range), press F11 to teleport to the outfit house door, E to enter. Tabs: hats, clothes, shoes, clubs. **Never change the maintainer's own loadout (slot 3); test in slot 8** and restore the selection afterwards. Clicking an already selected item unequips it.
+
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on eodomo/super-battle-golf-item-pack, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

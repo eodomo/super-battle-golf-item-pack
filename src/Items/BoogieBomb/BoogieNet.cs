@@ -73,7 +73,7 @@ internal static class BoogieNet
             id = ++nextId,
             ownerNetId = conn.identity.netId,
             origin = origin,
-            velocity = Vector3.ClampMagnitude(msg.velocity, 45f),
+            velocity = Vector3.ClampMagnitude(msg.velocity, 55f),
         });
     }
 }

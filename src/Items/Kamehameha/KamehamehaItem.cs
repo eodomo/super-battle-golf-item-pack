@@ -41,9 +41,17 @@ internal class KamehamehaItem : CustomItem
     internal static ConfigEntry<float> MaxLaunch;
     internal static ConfigEntry<float> SoundVolume;
 
+    internal static ConfigEntry<bool> DestroyCarts;
+    internal static ConfigEntry<bool> Levitate;
+    internal static ConfigEntry<float> LevitateSpeed;
+    internal static ConfigEntry<float> HoverHeight;
+
     private static bool charging;
     private static float chargeStart;
-    private static readonly RaycastHit[] hits = new RaycastHit[32];
+    private static readonly Collider[] overlap = new Collider[128];
+
+    /// <summary>Whether the local player is channeling (holding the charge), which lifts them off the ground.</summary>
+    internal static bool Charging => charging;
 
     public KamehamehaItem() => Instance = this;
 
@@ -56,6 +64,10 @@ internal class KamehamehaItem : CustomItem
         MinLaunch = Bind("MinLaunch", 14f, "Launch speed for golf balls hit with no charge.");
         MaxLaunch = Bind("MaxLaunch", 40f, "Launch speed for golf balls hit at full charge.");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the charge and blast (0-1). Local setting.");
+        DestroyCarts = Bind("DestroyCarts", true, "Whether the beam destroys golf carts (and eliminates their riders). Host setting.");
+        Levitate = Bind("Levitate", true, "Whether you float while channeling: walking moves you the way you're looking (up and down too).");
+        LevitateSpeed = Bind("LevitateSpeed", 4f, "How fast you move while levitating (m/s).");
+        HoverHeight = Bind("HoverHeight", 1.3f, "How far above the ground you float while channeling (meters).");
     }
 
     // No model in hand: the energy is the weapon.
@@ -162,27 +174,28 @@ internal class KamehamehaItem : CustomItem
         float travelled = 0f;
         foreach (PortalPaths.Segment segment in path)
         {
-            int count = Physics.SphereCastNonAlloc(segment.origin - segment.direction * radius, radius, segment.direction, hits, segment.length + radius,
-                GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
+            // Everyone inside the beam's tube is hit, however many are lined up behind each other (it goes through people).
+            int count = Physics.OverlapCapsuleNonAlloc(segment.origin, segment.End, radius, overlap, GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < count; i++)
             {
-                PlayerInfo target = hits[i].collider.GetComponentInParent<PlayerInfo>();
+                PlayerInfo target = overlap[i].GetComponentInParent<PlayerInfo>();
                 if (target != null && target != player && seen.Add(target.netId))
                 {
-                    victims.Add((target.AsHittable, target.transform.position + Vector3.up, segment.direction, segment.origin,
-                        travelled + Mathf.Max(0f, hits[i].distance - radius)));
+                    float along = Mathf.Clamp(Vector3.Dot(target.transform.position - segment.origin, segment.direction), 0f, segment.length);
+                    victims.Add((target.AsHittable, target.transform.position + Vector3.up, segment.direction, segment.origin, travelled + along));
                 }
             }
             travelled += segment.length;
         }
 
         ItemUse.BreakStealth(inventory);
+        Plugin.Log.LogInfo($"Kamehameha fired: {victims.Count} player(s) in the beam, {length:0} m long.");
         ulong useHash = inventory.GetEquippedItemUseHash();
         inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
-        ItemUseId useId = inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun);
         foreach ((Hittable hittable, Vector3 point, Vector3 hitDirection, Vector3 hitOrigin, float distance) in victims)
         {
-            hittable.HitWithItem(ItemType.Railgun, useId, hittable.transform.InverseTransformPoint(point), hitDirection,
+            // Each victim gets its own use id, like each player a sniper round goes through.
+            hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun), hittable.transform.InverseTransformPoint(point), hitDirection,
                 hittable.transform.InverseTransformPoint(hitOrigin), distance, inventory, isReflected: false, isInSpecialState: false,
                 canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
         }

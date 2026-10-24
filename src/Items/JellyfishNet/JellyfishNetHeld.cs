@@ -26,7 +26,7 @@ internal class JellyfishNetHeld : MonoBehaviour
 
     private void Awake()
     {
-        IdleNet = new NetCloth(0.5f, 0.24f, 0.2f, 0.012f, CordMaterial);
+        IdleNet = new NetCloth(0.5f, 0.24f, 0.2f, 0.02f, CordMaterial);
         gameObject.AddComponent<NetClothDriver>().Held = this;
     }
 
@@ -68,7 +68,15 @@ internal class JellyfishNetHeld : MonoBehaviour
         // The ring spans the model's X and Y; its bag opens along -Z.
         IdleNet.Step(RingCenter, -transform.right, transform.up, Vector3.Lerp(-transform.forward, Vector3.down, 0.6f).normalized, Time.deltaTime, null, null);
         IdleNet.Render();
+        if (++clothFrames == 90)
+        {
+            // Once per held net: is the empty net where it should be, and does a camera see it?
+            var cloth = IdleNet.Root.GetComponent<MeshRenderer>();
+            Plugin.Log.LogInfo($"Jellyfish net idle cloth: ring {RingCenter}, bounds {cloth.bounds}, visible to a camera: {cloth.isVisible}, layer {IdleNet.Root.layer}.");
+        }
     }
+
+    private int clothFrames;
 
     public void PlaySwing() => swingStart = Time.time;
 

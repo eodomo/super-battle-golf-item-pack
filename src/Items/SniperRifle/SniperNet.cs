@@ -120,7 +120,7 @@ internal static class SniperNet
 /// <summary>The sniper's sound and trail, played on each client.</summary>
 internal static class SniperEffects
 {
-    private static readonly Color TrailColor = new(0.85f, 0.92f, 1f, 0.55f);
+    private static readonly Color TrailColor = new(0.7f, 0.85f, 1f, 0.8f);
 
     // The shot is played louder than the rest (FMOD channels can go above 1).
     private const float ShotGain = 1.8f;
@@ -131,8 +131,8 @@ internal static class SniperEffects
         float volume = ItemAudio.Attenuate(origin, full, 60f, 600f);
         ItemAudio.Play(SniperSounds.Fire, ItemAudio.SfxBus, Mathf.Max(volume, full * 0.2f));
         // Halo's sniper leaves a vapor trail that hangs in the air and spreads out.
-        Beams.Show(origin, end, TrailColor, 0.04f, 0.22f, SniperRifleItem.TrailSeconds.Value);
-        Beams.Show(origin, end, new Color(1f, 1f, 1f, 0.9f), 0.025f, 0.01f, 0.12f); // bright core flash
+        Beams.Show(origin, end, TrailColor, 0.12f, 0.45f, SniperRifleItem.TrailSeconds.Value, streak: true);
+        Beams.Show(origin, end, new Color(1f, 1f, 1f, 1f), 0.07f, 0.03f, 0.35f, streak: true); // bright core flash
     }
 
     public static void PlayReload(Vector3 position)

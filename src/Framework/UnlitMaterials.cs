@@ -112,6 +112,37 @@ internal static class UnlitMaterials
 
     private static Texture2D softDot;
 
+    /// <summary>
+    /// A soft stripe: full length, alpha falling off across the width (for beams and trails). Unlike <see cref="SoftDot"/>
+    /// stretched along a line, it doesn't fade out at the ends.
+    /// </summary>
+    public static Texture2D SoftLine
+    {
+        get
+        {
+            if (softLine == null)
+            {
+                const int size = 64;
+                softLine = new Texture2D(4, size, TextureFormat.RGBA32, mipChain: false)
+                {
+                    name = "ItemPackSoftLine", hideFlags = HideFlags.DontUnloadUnusedAsset, wrapMode = TextureWrapMode.Clamp,
+                };
+                for (int y = 0; y < size; y++)
+                {
+                    float a = Mathf.Clamp01(1f - Mathf.Abs((y + 0.5f) / size * 2f - 1f));
+                    for (int x = 0; x < 4; x++)
+                    {
+                        softLine.SetPixel(x, y, new Color(1f, 1f, 1f, a * Mathf.Sqrt(a)));
+                    }
+                }
+                softLine.Apply();
+            }
+            return softLine;
+        }
+    }
+
+    private static Texture2D softLine;
+
     private static Shader FindFirst(string[] names)
     {
         foreach (string name in names)

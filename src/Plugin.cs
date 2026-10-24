@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.10.1";
+    public const string Version = "0.10.2";
 
     internal static ManualLogSource Log;
 
@@ -98,7 +98,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 17;
+        const int ConfigVersion = 18;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -170,7 +170,6 @@ public class Plugin : BaseUnityPlugin
         if (stored.Value < 6)
         {
             // The boogie bomb is thrown faster and flatter, at where you aim.
-            BoogieBombItem.ThrowSpeed.Value = (float)BoogieBombItem.ThrowSpeed.DefaultValue;
         }
         if (stored.Value < 7)
         {
@@ -228,6 +227,11 @@ public class Plugin : BaseUnityPlugin
         {
             // The Kamehameha reaches 600 m.
             KamehamehaItem.MaxRange.Value = (float)KamehamehaItem.MaxRange.DefaultValue;
+        }
+        if (stored.Value < 18)
+        {
+            // The portal gun was too small in hand.
+            PortalGunItem.Instance.HeldScale.Value = (float)PortalGunItem.Instance.HeldScale.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

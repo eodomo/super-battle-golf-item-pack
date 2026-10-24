@@ -391,6 +391,10 @@ internal static class SaberSlicer
     private static bool UpdatePieces(Pieces pieces)
     {
         float age = Time.time - pieces.Start;
+        if (pieces.Victim != null && pieces.EndAt < 0f)
+        {
+            HideVictim(pieces);
+        }
         if (pieces.EndAt < 0f)
         {
             bool done = pieces.Victim != null
@@ -427,6 +431,42 @@ internal static class SaberSlicer
             }
         }
         return true;
+    }
+
+    private static readonly HashSet<Renderer> hiddenSet = new();
+
+    /// <summary>
+    /// Keeps the cut player's own model hidden. The game switches hats and face wear on and off itself (hiding them from
+    /// first person, refreshing them), which brought the originals back, floating where the player was cut; so hidden
+    /// renderers are forced off every frame, and any new or missed mesh renderer under the victim is hidden too.
+    /// </summary>
+    private static void HideVictim(Pieces pieces)
+    {
+        if (pieces.Victim == null)
+        {
+            return;
+        }
+        foreach (Renderer renderer in pieces.Hidden)
+        {
+            if (renderer != null)
+            {
+                renderer.forceRenderingOff = true;
+            }
+        }
+        if (Time.frameCount % 6 != 0)
+        {
+            return;
+        }
+        hiddenSet.Clear();
+        hiddenSet.UnionWith(pieces.Hidden);
+        foreach (Renderer renderer in pieces.Victim.GetComponentsInChildren<Renderer>(false))
+        {
+            if ((renderer is MeshRenderer || renderer is SkinnedMeshRenderer) && !hiddenSet.Contains(renderer) && !renderer.TryGetComponent(out TMPro.TMP_Text _))
+            {
+                renderer.forceRenderingOff = true;
+                pieces.Hidden.Add(renderer);
+            }
+        }
     }
 
     private static void Restore(Pieces pieces)

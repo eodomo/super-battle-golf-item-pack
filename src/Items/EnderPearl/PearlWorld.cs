@@ -61,6 +61,7 @@ internal static class PearlWorld
         var pearl = new Pearl { id = id, ownerNetId = ownerNetId, go = go, spawnTime = Time.time };
         pearl.path = ComputePath(origin, velocity, out pearl.landTime, out pearl.landed, out pearl.landPoint, out pearl.landNormal);
         pearls[id] = pearl;
+        Plugin.Log.LogInfo($"Ender pearl thrown: from {origin} at {velocity.magnitude:0.0} m/s, lands={pearl.landed} after {pearl.landTime:0.00} s at {pearl.landPoint}.");
         PearlSounds.PlayThrow(Volume(origin));
     }
 

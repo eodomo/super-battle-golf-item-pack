@@ -20,17 +20,29 @@ internal static class Beams
 
     private static readonly List<Beam> beams = new();
     private static Material material;
+    private static Material streakMaterial;
 
     public static void Show(Vector3 from, Vector3 to, Color color, float width) =>
         Show(from, to, color, width, width, DefaultDuration);
 
     /// <summary>A beam that fades out over <paramref name="duration"/>, its width going from <paramref name="width"/> to <paramref name="endWidth"/>.</summary>
-    public static void Show(Vector3 from, Vector3 to, Color color, float width, float endWidth, float duration)
+    public static void Show(Vector3 from, Vector3 to, Color color, float width, float endWidth, float duration, bool streak = false)
     {
-        material ??= UnlitMaterials.Additive(UnlitMaterials.SoftDot, Color.white);
+        // A streak keeps its full brightness along its whole length (the round dot texture fades out toward the ends).
+        Material mat;
+        if (streak)
+        {
+            streakMaterial ??= UnlitMaterials.Additive(UnlitMaterials.SoftLine, Color.white);
+            mat = streakMaterial;
+        }
+        else
+        {
+            material ??= UnlitMaterials.Additive(UnlitMaterials.SoftDot, Color.white);
+            mat = material;
+        }
         var go = new GameObject("ItemBeam");
         var line = go.AddComponent<LineRenderer>();
-        line.sharedMaterial = material;
+        line.sharedMaterial = mat;
         line.positionCount = 2;
         line.SetPosition(0, from);
         line.SetPosition(1, to);

@@ -123,10 +123,57 @@ internal static class PortalTravel
         portal.Sill = null;
     }
 
+    // ---- falling out of the world ----
+
+    private static Vector3 lastExit;
+    private static float lastExitTime = -100f;
+
+    /// <summary>
+    /// Safety nets for the local player coming out of a portal. Collisions with the wall are switched off while going
+    /// through, so ending that while still sunk into the ground (terrain is one collider: wall and floor) would drop them
+    /// through the world. <see cref="Unstick"/> lifts them onto the surface; <see cref="WorldBottomGuard"/> brings back
+    /// anyone who has gone out the bottom anyway.
+    /// </summary>
+    private static void Unstick(PlayerInfo player)
+    {
+        Vector3 feet = player.transform.position;
+        int mask = GameManager.LayerSettings.PlayerGroundableMask;
+        if (!Physics.CheckCapsule(feet + Vector3.up * 0.35f, feet + Vector3.up * 1.4f, 0.3f, mask, QueryTriggerInteraction.Ignore))
+        {
+            return; // not inside anything
+        }
+        if (Physics.Raycast(feet + Vector3.up * 1.8f, Vector3.down, out RaycastHit surface, 2.4f, mask, QueryTriggerInteraction.Ignore)
+            && surface.point.y > feet.y && surface.point.y - feet.y < 1.7f)
+        {
+            Vector3 velocity = player.Rigidbody.linearVelocity;
+            Plugin.Log.LogInfo($"Portal: lifted {player.name} out of the ground, {surface.point.y - feet.y:0.00} m up.");
+            player.Movement.Teleport(new Vector3(feet.x, surface.point.y + 0.05f, feet.z), player.transform.rotation, resetState: false);
+            player.Rigidbody.linearVelocity = new Vector3(velocity.x, Mathf.Max(velocity.y, 0f), velocity.z);
+        }
+    }
+
+    private static void WorldBottomGuard()
+    {
+        PlayerInfo player = GameManager.LocalPlayerInfo;
+        if (player == null || Time.time - lastExitTime > 8f || !player.Movement.IsVisible || player.ActiveGolfCartSeat.IsValid())
+        {
+            return;
+        }
+        Vector3 position = player.transform.position;
+        if (position.y < lastExit.y - 3f
+            && !Physics.Raycast(position + Vector3.up, Vector3.down, 400f, GameManager.LayerSettings.PlayerGroundableMask, QueryTriggerInteraction.Ignore))
+        {
+            Plugin.Log.LogWarning($"Portal: {player.name} fell out of the world at {position}; back to {lastExit}.");
+            player.Movement.Teleport(lastExit, player.transform.rotation, resetState: false);
+            player.Rigidbody.linearVelocity = Vector3.zero;
+        }
+    }
+
     // ---- every physics step ----
 
     public static void FixedTick()
     {
+        WorldBottomGuard();
         if (Portals.All.Count == 0 || GameManager.LayerSettings == null)
         {
             if (passages.Count > 0)
@@ -316,6 +363,10 @@ internal static class PortalTravel
     private static void End(Passage passage)
     {
         RestoreWall(passage);
+        if (passage.Entity != null && passage.Entity.IsPlayer && Controls(passage.Entity))
+        {
+            Unstick(passage.Entity.PlayerInfo);
+        }
         if (passage.Body != null)
         {
             passages.Remove(passage.Body);
@@ -472,7 +523,10 @@ internal static class PortalTravel
         float yawBefore = player.transform.eulerAngles.y;
         player.Movement.Teleport(feet, rotation, resetState: false);
         body.linearVelocity = velocity; // Teleport zeroes velocity; momentum is the whole point
+        Plugin.Log.LogInfo($"Portal: {player.name} came out at {feet} moving {velocity} ({velocity.magnitude:0.0} m/s).");
         RotateLocalCamera(Mathf.DeltaAngle(yawBefore, rotation.eulerAngles.y));
+        lastExit = feet;
+        lastExitTime = Time.time;
     }
 
     private static void RotateLocalCameraIfRiding(Entity entity, Quaternion travel)

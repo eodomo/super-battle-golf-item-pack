@@ -16,7 +16,7 @@ internal static class WorldMask
             {
                 LayerSettings layers = GameManager.LayerSettings;
                 int mask = Physics.DefaultRaycastLayers;
-                mask &= ~layers.PlayersMask & ~layers.GolfCartsMask & ~layers.BallMask & ~layers.DynamicBallMask & ~layers.FoliageMask;
+                mask &= ~layers.PlayersMask & ~layers.GolfCartsMask & ~layers.BallMask & ~layers.DynamicBallMask & ~layers.FoliageMask & ~layers.ItemCollectorMask;
                 mask &= ~(1 << layers.ItemsLayer) & ~(1 << layers.VfxLayer) & ~(1 << layers.ElectromagnetShieldLayer)
                     & ~(1 << layers.GolfCartPassengersLayer) & ~(1 << layers.HittablesLayer);
                 solid = mask;

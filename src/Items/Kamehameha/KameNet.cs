@@ -119,6 +119,10 @@ internal static class KameNet
         foreach (PortalPaths.Segment segment in PortalPaths.Trace(msg.origin, msg.direction, msg.length, 0, out _))
         {
             DirtWorld.ServerBreakInCapsule(segment.origin, segment.End, msg.radius);
+            if (KamehamehaItem.DestroyCarts.Value)
+            {
+                ServerDestroyCarts(segment, msg.radius, conn.identity.GetComponent<PlayerInfo>());
+            }
             int count = Physics.SphereCastNonAlloc(segment.origin, msg.radius, segment.direction, ballHits, segment.length, layers.BallMask | layers.DynamicBallMask, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < count; i++)
             {
@@ -128,6 +132,42 @@ internal static class KameNet
                     body.AddForce((segment.direction + Vector3.up * 0.3f) * Mathf.Min(msg.power, MaxPower), ForceMode.VelocityChange);
                 }
             }
+        }
+    }
+
+    private static readonly Collider[] cartOverlap = new Collider[64];
+
+    /// <summary>Golf carts in the beam are destroyed, and whoever rides in one is eliminated (like a lightsaber cut).</summary>
+    private static void ServerDestroyCarts(PortalPaths.Segment segment, float radius, PlayerInfo attacker)
+    {
+        int count = Physics.OverlapCapsuleNonAlloc(segment.origin, segment.End, radius, cartOverlap, GameManager.LayerSettings.GolfCartsMask, QueryTriggerInteraction.Ignore);
+        var done = new HashSet<Entity>();
+        for (int i = 0; i < count; i++)
+        {
+            Entity cart = cartOverlap[i].GetComponentInParent<Entity>();
+            if (cart == null || !cart.IsGolfCart || !done.Add(cart))
+            {
+                continue;
+            }
+            var passengers = new List<PlayerInfo>();
+            foreach (PlayerInfo passenger in cart.AsGolfCart.passengers)
+            {
+                if (passenger != null)
+                {
+                    passengers.Add(passenger);
+                }
+            }
+            foreach (PlayerInfo passenger in passengers)
+            {
+                passenger.ExitGolfCart(GolfCartExitType.Knockout);
+                Hittable hittable = passenger.AsEntity.AsHittable;
+                Vector3 point = passenger.transform.position + Vector3.up;
+                hittable.HitWithItem(ItemType.Railgun, attacker.Inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun),
+                    hittable.transform.InverseTransformPoint(point), segment.direction,
+                    hittable.transform.InverseTransformPoint(segment.origin), Vector3.Distance(point, segment.origin),
+                    attacker.Inventory, isReflected: false, isInSpecialState: false, canHitWithNoUser: true, hitTimestamp: NetworkTime.time);
+            }
+            cart.DestroyEntity();
         }
     }
 
