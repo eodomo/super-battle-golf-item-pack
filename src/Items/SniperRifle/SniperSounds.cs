@@ -83,6 +83,12 @@ internal static class SniperSounds
                 samples[i + offset] += smooth * gain;
             }
         }
+        // Soft-clip it hot: the snap no longer sets the level on its own, so the boom and echoes come up with it.
+        Normalize(samples, 1f);
+        for (int i = 0; i < length; i++)
+        {
+            samples[i] = (float)System.Math.Tanh(samples[i] * 3f);
+        }
         return Normalize(samples, 0.95f);
     }
 

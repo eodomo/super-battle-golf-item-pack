@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.10.0";
+    public const string Version = "0.10.1";
 
     internal static ManualLogSource Log;
 
@@ -98,7 +98,7 @@ public class Plugin : BaseUnityPlugin
     /// </summary>
     private void MigrateConfig()
     {
-        const int ConfigVersion = 15;
+        const int ConfigVersion = 17;
         ConfigEntry<int> stored = Config.Bind("Internal", "ConfigVersion", 0, "Used by the pack to update old settings. Don't change it.");
         if (stored.Value >= ConfigVersion)
         {
@@ -218,6 +218,16 @@ public class Plugin : BaseUnityPlugin
         {
             // The boogie bomb's blast is much bigger.
             BoogieBombItem.Radius.Value = (float)BoogieBombItem.Radius.DefaultValue;
+        }
+        if (stored.Value < 16)
+        {
+            // The jellyfish net reaches further, so catches are easier.
+            JellyfishNetItem.Reach.Value = (float)JellyfishNetItem.Reach.DefaultValue;
+        }
+        if (stored.Value < 17)
+        {
+            // The Kamehameha reaches 600 m.
+            KamehamehaItem.MaxRange.Value = (float)KamehamehaItem.MaxRange.DefaultValue;
         }
         stored.Value = ConfigVersion;
         Config.Save();

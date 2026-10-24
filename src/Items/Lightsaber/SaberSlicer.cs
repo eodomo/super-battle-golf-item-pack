@@ -15,7 +15,7 @@ namespace ItemPack.Items;
 /// </summary>
 internal static class SaberSlicer
 {
-    private const float PendingSeconds = 0.8f;    // how long a cut waits for its victim's knockout to arrive
+    private const float PendingSeconds = 1.5f;    // how long a cut waits for its victim's knockout (or kill) to arrive
     private const float MaxHiddenSeconds = 12f;
     private const float MinPieceSeconds = 1.5f;
     private const float ShrinkSeconds = 0.35f;
@@ -70,7 +70,7 @@ internal static class SaberSlicer
                 pending.RemoveAt(i);
                 continue;
             }
-            if (!cut.Player.Movement.IsKnockedOutOrRecovering || IsAlreadyInPieces(cut.Player))
+            if (!IsDown(cut.Player) || IsAlreadyInPieces(cut.Player))
             {
                 continue;
             }
@@ -94,6 +94,9 @@ internal static class SaberSlicer
         }
     }
 
+    // A saber hit kills (the victim waits hidden, then respawns); a hit that only knocks out (in a cart) still counts.
+    private static bool IsDown(PlayerInfo player) => player.Movement.IsKnockedOutOrRecovering || player.Movement.IsRespawning;
+
     private static bool IsAlreadyInPieces(PlayerInfo player)
     {
         foreach (Pieces pieces in active)
@@ -111,7 +114,8 @@ internal static class SaberSlicer
     private static void SlicePlayer(PlayerInfo player, Vector3 point, Vector3 normal, Color color)
     {
         renderers.Clear();
-        ModelPuppet.CollectRenderers(player.transform, renderers);
+        // A killed player is hidden as soon as they're eliminated, often before the cut gets here: copy them anyway.
+        ModelPuppet.CollectRenderers(player.transform, renderers, includeHidden: player.Movement.IsRespawning);
         if (renderers.Count == 0)
         {
             return;
@@ -390,7 +394,7 @@ internal static class SaberSlicer
         if (pieces.EndAt < 0f)
         {
             bool done = pieces.Victim != null
-                ? age > MaxHiddenSeconds || (age > MinPieceSeconds && !pieces.Victim.Movement.IsKnockedOutOrRecovering)
+                ? age > MaxHiddenSeconds || (age > MinPieceSeconds && !IsDown(pieces.Victim))
                 : age > pieces.CartLifetime;
             if (pieces.Victim == null && pieces.Hidden.Count > 0)
             {
@@ -429,7 +433,8 @@ internal static class SaberSlicer
     {
         foreach (Renderer renderer in pieces.Hidden)
         {
-            if (renderer != null)
+            // While the game itself hides the player (still waiting to respawn), it shows them again when they're back.
+            if (renderer != null && (pieces.Victim == null || pieces.Victim.Movement.IsVisible))
             {
                 renderer.forceRenderingOff = false;
             }

@@ -50,7 +50,7 @@ internal class KamehamehaItem : CustomItem
     protected override void BindConfig()
     {
         MaxChargeSeconds = Bind("MaxChargeSeconds", 3f, "Seconds to reach full power.");
-        MaxRange = Bind("MaxRange", 90f, "Beam length (meters); walls and terrain stop it sooner.");
+        MaxRange = Bind("MaxRange", 600f, "Beam length (meters); walls and terrain stop it sooner.");
         MinRadius = Bind("MinRadius", 0.6f, "Beam radius with no charge (meters).");
         MaxRadius = Bind("MaxRadius", 2.2f, "Beam radius at full charge (meters).");
         MinLaunch = Bind("MinLaunch", 14f, "Launch speed for golf balls hit with no charge.");

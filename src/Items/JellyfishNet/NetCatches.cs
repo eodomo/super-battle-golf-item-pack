@@ -105,8 +105,8 @@ internal static class NetCatches
         Vector3 forward = Vector3.ProjectOnPlane(swinger.transform.forward, Vector3.up).normalized;
         Vector3 chest = swinger.transform.position + Vector3.up * 1.1f;
         float reach = JellyfishNetItem.Reach.Value;
-        Vector3 center = chest + forward * (reach * 0.6f);
-        int count = Physics.OverlapSphereNonAlloc(center, reach * 0.5f + 0.2f, overlap, GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
+        Vector3 center = chest + forward * (reach * 0.5f);
+        int count = Physics.OverlapSphereNonAlloc(center, reach * 0.6f + 0.4f, overlap, GameManager.LayerSettings.PlayersMask, QueryTriggerInteraction.Ignore);
         PlayerInfo best = null;
         float bestDistance = float.MaxValue;
         for (int i = 0; i < count; i++)
@@ -118,7 +118,7 @@ internal static class NetCatches
                 continue;
             }
             Vector3 flat = Vector3.ProjectOnPlane(other.transform.position - swinger.transform.position, Vector3.up);
-            if (flat.magnitude > reach + 0.3f || Vector3.Angle(flat, forward) > 70f)
+            if (flat.magnitude > reach + 0.4f || (flat.magnitude > 0.8f && Vector3.Angle(flat, forward) > 100f))
             {
                 continue;
             }

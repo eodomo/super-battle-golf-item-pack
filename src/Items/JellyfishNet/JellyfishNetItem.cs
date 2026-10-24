@@ -7,8 +7,8 @@ using UnityEngine.InputSystem;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Jellyfish Net (SpongeBob): one swing to catch someone. It's a short reach, so you have to walk right up to
-/// them. Anyone it catches hangs in the net and is carried around in front of you for 10 seconds; left click
+/// Jellyfish Net (SpongeBob): one swing to catch someone near you (anyone in front of you during the sweep). Anyone
+/// it catches hangs in the net and is carried around in front of you for 10 seconds; left click
 /// throws them out early. A swing that catches nobody uses the net up.
 /// The swing is posed by <see cref="JellyfishNetHeld"/>, catching and carrying by <see cref="NetCatches"/>.
 /// </summary>
@@ -44,7 +44,7 @@ internal class JellyfishNetItem : CustomItem
 
     protected override void BindConfig()
     {
-        Reach = Bind("Reach", 1.6f, "How far a swing reaches (meters). Short: you have to get right up to someone.");
+        Reach = Bind("Reach", 2.4f, "How far a swing reaches (meters).");
         CarrySeconds = Bind("CarrySeconds", 10f, "How long you carry someone you caught before they're let go. Host setting.");
         ThrowSpeed = Bind("ThrowSpeed", 16f, "How fast a caught player is thrown when you click (m/s).");
         SoundVolume = Bind("SoundVolume", 1f, "Volume of the swooshes (0-1). Local setting.");
@@ -112,9 +112,20 @@ internal class JellyfishNetItem : CustomItem
         player.Movement.AlignWithCameraImmediately();
         ItemUse.BreakStealth(inventory);
         NetCatchNet.SendSwing(player);
-        yield return new WaitForSeconds(JellyfishNetHeld.StrikeSeconds);
+        yield return new WaitForSeconds(JellyfishNetHeld.WindSeconds);
 
-        PlayerInfo target = NetCatches.FindTarget(player);
+        // Anyone in reach at any point of the sweep is caught (and a little after, so a step in still counts).
+        PlayerInfo target = null;
+        float sweepEnd = Time.time + JellyfishNetHeld.SweepSeconds + 0.1f;
+        while (target == null)
+        {
+            target = NetCatches.FindTarget(player);
+            if (target != null || Time.time >= sweepEnd)
+            {
+                break;
+            }
+            yield return null;
+        }
         if (target != null)
         {
             NetCatchNet.SendCatch(target.netId, inventory.EquippedItemIndex);

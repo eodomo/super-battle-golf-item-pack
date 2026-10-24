@@ -24,23 +24,30 @@ internal sealed class ModelPuppet
         Root = new GameObject(name);
     }
 
-    /// <summary>The mesh renderers and skinned mesh renderers of <paramref name="root"/> worth copying.</summary>
-    public static void CollectRenderers(Transform root, List<Renderer> results)
+    /// <summary>
+    /// The mesh renderers and skinned mesh renderers of <paramref name="root"/> worth copying. With <paramref name="includeHidden"/>,
+    /// also the ones the game has switched off (a player who was just killed is hidden at once).
+    /// </summary>
+    public static void CollectRenderers(Transform root, List<Renderer> results, bool includeHidden = false)
     {
         foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(false))
         {
-            if (IsCopyable(renderer))
+            if (IsCopyable(renderer, includeHidden))
             {
                 results.Add(renderer);
             }
         }
     }
 
-    private static bool IsCopyable(Renderer renderer)
+    private static bool IsCopyable(Renderer renderer, bool includeHidden)
     {
-        if (!renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy)
+        if (!renderer.enabled || (renderer.forceRenderingOff && !includeHidden) || !renderer.gameObject.activeInHierarchy)
         {
             return false;
+        }
+        if (renderer.name == "Stealth renderer" || renderer.name == "Outline renderer")
+        {
+            return false; // the game's overlays for hidden players and teammates
         }
         if (renderer is SkinnedMeshRenderer skinned)
         {

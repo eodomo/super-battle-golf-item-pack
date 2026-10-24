@@ -141,6 +141,31 @@ internal static class DevDummies
     }
 }
 
+/// <summary>
+/// A killed player's own client runs their respawn (hidden, a wait, back at the tee). A dummy has none, so the host plays
+/// it out instead: hidden and "respawning" for the game's delay, then visible again where it stood.
+/// </summary>
+[HarmonyPatch(typeof(PlayerMovement), nameof(PlayerMovement.TryBeginRespawn))]
+internal static class DummyRespawnPatch
+{
+    private static void Postfix(PlayerMovement __instance, bool __result)
+    {
+        if (__result && NetworkServer.active && DevDummies.IsDummy(__instance.netId))
+        {
+            __instance.StartCoroutine(Respawn(__instance));
+        }
+    }
+
+    private static System.Collections.IEnumerator Respawn(PlayerMovement movement)
+    {
+        movement.NetworkrespawnState = RespawnState.WaitingToRespawn;
+        movement.NetworkisVisible = false;
+        yield return new WaitForSeconds(GameManager.MatchSettings.RespawnPostEliminationDelay + GameManager.MatchSettings.RespawnAnimationDuration);
+        movement.NetworkrespawnState = RespawnState.None;
+        movement.NetworkisVisible = true;
+    }
+}
+
 /// <summary>Sends to a dummy's fake connection go nowhere (no transport has that id).</summary>
 [HarmonyPatch(typeof(NetworkConnectionToClient), "SendToTransport")]
 internal static class DummySendPatch

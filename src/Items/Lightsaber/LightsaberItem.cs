@@ -368,7 +368,8 @@ internal class LightsaberItem : CustomItem
             if (hittable.AsEntity.IsPlayer)
             {
                 Vector3 direction = flat.sqrMagnitude > 0.01f ? flat.normalized : forward;
-                hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun),
+                // A railgun hit (it kills), tagged as ours so the host skips the railgun's explosion (SaberKillPatch).
+                hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId((ItemType)Id),
                     hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(chest),
                     flat.magnitude, inventory, isReflected: false, isInSpecialState: false,
                     canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
@@ -446,10 +447,11 @@ internal class LightsaberItem : CustomItem
         }
         inventory.PlayerInfo.LocalPlayerCancelSmokeBombInvisibility();
         ulong useHash = inventory.GetEquippedItemUseHash();
+        ItemType saber = inventory.GetEffectiveSlot(inventory.EquippedItemIndex).itemType;
         inventory.DecrementUseFromSlotAt(inventory.EquippedItemIndex);
         if (hittable.AsEntity.IsPlayer)
         {
-            hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId(ItemType.Railgun),
+            hittable.HitWithItem(ItemType.Railgun, inventory.IncrementAndGetCurrentItemUseId(saber),
                 hittable.transform.InverseTransformPoint(point), direction, hittable.transform.InverseTransformPoint(source),
                 (point - source).magnitude, inventory, isReflected: false, isInSpecialState: false,
                 canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);

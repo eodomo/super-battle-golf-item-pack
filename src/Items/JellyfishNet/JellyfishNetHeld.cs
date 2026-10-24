@@ -12,7 +12,6 @@ internal class JellyfishNetHeld : MonoBehaviour
     public const float WindSeconds = 0.12f;
     public const float SweepSeconds = 0.16f;
     public const float RecoverSeconds = 0.25f;
-    public const float StrikeSeconds = WindSeconds + SweepSeconds * 0.6f;
 
     // Arm pitch above level at the start (net held up behind) and the end (net down in front).
     private const float PitchStart = 75f;
