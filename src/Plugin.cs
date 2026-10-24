@@ -14,7 +14,7 @@ namespace ItemPack;
 public class Plugin : BaseUnityPlugin
 {
     public const string Guid = "eodomo.superbattlegolf.itempack";
-    public const string Version = "0.10.2";
+    public const string Version = "0.10.3";
 
     internal static ManualLogSource Log;
 
