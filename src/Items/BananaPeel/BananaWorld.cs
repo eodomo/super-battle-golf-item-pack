@@ -117,7 +117,20 @@ internal static class BananaWorld
         SendDamaged();
     }
 
-    public static void RequestClearAlongShot(Vector3 from, Vector3 to, float radius = 0.5f)
+    /// <summary>Host: whether a landed peel is still there (as this client sees it), and where, for checking a damage request.</summary>
+    public static bool TryGetLandedPosition(int id, out Vector3 position)
+    {
+        if (bananas.TryGetValue(id, out Banana banana) && banana.state == State.Landed && banana.go != null)
+        {
+            position = banana.go.transform.position;
+            return true;
+        }
+        position = default;
+        return false;
+    }
+
+    // The default radius plus DamageReach puts a peel's hit zone about 0.5 m from the shot.
+    public static void RequestClearAlongShot(Vector3 from, Vector3 to, float radius = 0.15f)
     {
         CollectDamaged(p => NearSegment(p, from, to, radius));
         SendDamaged();

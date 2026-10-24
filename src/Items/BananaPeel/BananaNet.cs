@@ -40,6 +40,7 @@ public struct BananaRemoved : NetworkMessage
 internal static class BananaNet
 {
     private const float MaxSpawnDistanceFromPlayer = 6f;
+    private const float MaxDamageRequestDistance = 300f; // sniper range and beyond
     private const int MaxSpawnsPerWindow = 4;
     private const double SpawnWindowSeconds = 2.0;
 
@@ -128,7 +129,9 @@ internal static class BananaNet
 
     private static void OnServerDamageRequest(NetworkConnectionToClient conn, BananaDamageRequest msg)
     {
-        if (conn.identity != null)
+        // Damage is seen near the peel; a request from across the map is bogus. (The host's own view of the peel is the reference.)
+        if (conn.identity != null && serverLiveIds.Contains(msg.id)
+            && (!BananaWorld.TryGetLandedPosition(msg.id, out Vector3 peel) || (conn.identity.transform.position - peel).sqrMagnitude <= MaxDamageRequestDistance * MaxDamageRequestDistance))
         {
             ServerRemoveByDamage(msg.id);
         }

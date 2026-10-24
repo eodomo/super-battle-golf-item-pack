@@ -116,9 +116,9 @@ internal class CapShieldItem : CustomItem
 
     /// <summary>
     /// Whether <paramref name="victim"/> has the shield raised (right click held) against an attack coming from
-    /// <paramref name="source"/>, a world point (zero when unknown, which counts as in front).
+    /// <paramref name="source"/>, a world point (zero when unknown: blocked only if <paramref name="unknownBlocks"/>, for attacks that fall from above).
     /// </summary>
-    public static bool IsBlocking(PlayerInfo victim, Vector3 source)
+    public static bool IsBlocking(PlayerInfo victim, Vector3 source, bool unknownBlocks = true)
     {
         if (!IsHoldingCharged(victim, out PlayerInventory inventory, out _) || !inventory.IsAimingItemNetworked())
         {
@@ -126,7 +126,7 @@ internal class CapShieldItem : CustomItem
         }
         if (source == Vector3.zero)
         {
-            return true;
+            return unknownBlocks;
         }
         Vector3 toSource = Vector3.ProjectOnPlane(source - victim.transform.position, Vector3.up);
         if (toSource.sqrMagnitude < 0.04f)
@@ -145,7 +145,7 @@ internal class CapShieldItem : CustomItem
     {
         // A ball coming home onto your own head isn't an attack.
         if (knockoutType == KnockoutType.ReturnedBall || !IsHoldingCharged(victim, out PlayerInventory inventory, out int slot)
-            || (!forced && !IsBlocking(victim, source)))
+            || (!forced && !IsBlocking(victim, source, unknownBlocks: false)))
         {
             return false;
         }

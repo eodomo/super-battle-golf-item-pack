@@ -109,8 +109,14 @@ internal static class SlingerNet
 
     private static void OnServerAttach(NetworkConnectionToClient conn, WebAttachRequest msg)
     {
-        // A web through a portal can stick far from the slinger (the portals can be anywhere).
-        float maxDistance = msg.viaPortal && Portals.All.Count > 0 ? MaxAnchorDistance * 10f : MaxAnchorDistance;
+        // A web through a portal can stick far from the slinger, but only along a route through an open portal pair.
+        float maxDistance = MaxAnchorDistance;
+        if (conn.identity != null && msg.viaPortal && Portals.All.Count > 0
+            && PortalShots.TryFindPathTo(conn.identity.transform.position, msg.anchor, out Vector3 entry, out Vector3 exit)
+            && (conn.identity.transform.position - entry).magnitude + (exit - msg.anchor).magnitude <= MaxAnchorDistance)
+        {
+            maxDistance = float.PositiveInfinity;
+        }
         if (conn.identity != null && (conn.identity.transform.position - msg.anchor).sqrMagnitude <= maxDistance * maxDistance)
         {
             serverPulls.Remove(conn.identity.netId);

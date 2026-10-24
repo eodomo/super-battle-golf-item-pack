@@ -211,24 +211,36 @@ internal static class BubbleWorld
         // A body is kept out of the dome by its own reach (half a cart's length), and kept in by the same.
         bool wasOutside = distanceBefore >= bubble.radius;
         float shell = wasOutside ? bubble.radius + reach : bubble.radius - reach;
-        if (shell <= 0.1f || (wasOutside ? !(distanceBefore >= shell && distanceNow < shell) : !(distanceBefore <= shell && distanceNow > shell)))
+        // A cart already past its shell when first seen (it straddled the edge as the dome appeared) is held where it is:
+        // it may move back to its side, not further across.
+        bool straddling = wasOutside ? distanceBefore < shell && distanceNow < distanceBefore : distanceBefore > shell && distanceNow > distanceBefore;
+        bool crossed = wasOutside ? distanceBefore >= shell && distanceNow < shell : distanceBefore <= shell && distanceNow > shell;
+        if (shell <= 0.1f || !(crossed || straddling))
         {
             return; // didn't cross
         }
-        // Where the step's path met the shell: |before + t * step - center| = shell.
         Vector3 step = now - before;
-        Vector3 offset = before - bubble.center;
-        float a = step.sqrMagnitude;
-        float b = 2f * Vector3.Dot(offset, step);
-        float c = offset.sqrMagnitude - shell * shell;
-        float discriminant = b * b - 4f * a * c;
-        if (a < 1e-8f || discriminant < 0f)
+        Vector3 hit;
+        if (straddling)
         {
-            return;
+            hit = bubble.center + (before - bubble.center).normalized * shell;
         }
-        float root = Mathf.Sqrt(discriminant);
-        float t = wasOutside ? (-b - root) / (2f * a) : (-b + root) / (2f * a); // entering: the near crossing; leaving: the far one
-        Vector3 hit = bubble.center + (before + step * Mathf.Clamp01(t) - bubble.center).normalized * shell;
+        else
+        {
+            // Where the step's path met the shell: |before + t * step - center| = shell.
+            Vector3 offset = before - bubble.center;
+            float a = step.sqrMagnitude;
+            float b = 2f * Vector3.Dot(offset, step);
+            float c = offset.sqrMagnitude - shell * shell;
+            float discriminant = b * b - 4f * a * c;
+            if (a < 1e-8f || discriminant < 0f)
+            {
+                return;
+            }
+            float root = Mathf.Sqrt(discriminant);
+            float t = wasOutside ? (-b - root) / (2f * a) : (-b + root) / (2f * a); // entering: the near crossing; leaving: the far one
+            hit = bubble.center + (before + step * Mathf.Clamp01(t) - bubble.center).normalized * shell;
+        }
         Vector3 normal = (hit - bubble.center).normalized; // outward
         Vector3 velocity = body.linearVelocity;
         float into = Vector3.Dot(velocity, normal);
