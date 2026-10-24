@@ -131,8 +131,18 @@ internal static class SniperEffects
         float volume = ItemAudio.Attenuate(origin, full, 60f, 600f);
         ItemAudio.Play(SniperSounds.Fire, ItemAudio.SfxBus, Mathf.Max(volume, full * 0.2f));
         // Halo's sniper leaves a vapor trail that hangs in the air and spreads out.
-        Beams.Show(origin, end, TrailColor, 0.12f, 0.45f, SniperRifleItem.TrailSeconds.Value, streak: true);
-        Beams.Show(origin, end, new Color(1f, 1f, 1f, 1f), 0.07f, 0.03f, 0.35f, streak: true); // bright core flash
+        // The end is where the shot would stop if it went straight on; through a portal the trail is a few pieces.
+        Vector3 span = end - origin;
+        float length = span.magnitude;
+        if (length < 0.01f)
+        {
+            return;
+        }
+        foreach (PortalPaths.Segment segment in PortalPaths.Trace(origin, span / length, length, 0, out _))
+        {
+            Beams.Show(segment.origin, segment.End, TrailColor, 0.12f, 0.45f, SniperRifleItem.TrailSeconds.Value, streak: true);
+            Beams.Show(segment.origin, segment.End, new Color(1f, 1f, 1f, 1f), 0.07f, 0.03f, 0.35f, streak: true); // bright core flash
+        }
     }
 
     public static void PlayReload(Vector3 position)

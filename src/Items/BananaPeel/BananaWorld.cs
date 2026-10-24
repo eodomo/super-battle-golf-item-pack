@@ -27,6 +27,7 @@ internal static class BananaWorld
         public float spawnTime;
         public float landTime;
         public List<Vector3> path;
+        public List<bool> jumps; // path[i] is where it came out of a portal: snap there instead of sliding from path[i - 1]
         public Quaternion landedRotation;
         public Vector3 flyAwayVelocity;
         public Vector3 flyAwaySpin;
@@ -56,7 +57,7 @@ internal static class BananaWorld
             state = State.Flying,
             spawnTime = Time.time,
         };
-        banana.path = ComputePath(position, velocity, id, out banana.landedRotation);
+        banana.path = ComputePath(position, velocity, id, out banana.landedRotation, out banana.jumps);
         bananas[id] = banana;
     }
 
@@ -77,6 +78,78 @@ internal static class BananaWorld
             direction = slipper.transform.forward;
         }
         StartFlyAway(banana, direction);
+    }
+
+    // ---- damage clears landed peels (no blast) ----
+
+    private const float DamageReach = 0.35f; // a peel is hit when damage comes this close to it
+    private static readonly List<int> damaged = new();
+
+    /// <summary>Host: an explosion or beam cleared whatever peels it reached.</summary>
+    public static void ServerClearInSphere(Vector3 center, float radius)
+    {
+        if (NetworkServer.active)
+        {
+            CollectDamaged(p => (p - center).sqrMagnitude <= (radius + DamageReach) * (radius + DamageReach));
+            foreach (int id in damaged)
+            {
+                BananaNet.ServerRemoveByDamage(id);
+            }
+        }
+    }
+
+    public static void ServerClearInCapsule(Vector3 a, Vector3 b, float radius)
+    {
+        if (NetworkServer.active)
+        {
+            CollectDamaged(p => NearSegment(p, a, b, radius));
+            foreach (int id in damaged)
+            {
+                BananaNet.ServerRemoveByDamage(id);
+            }
+        }
+    }
+
+    /// <summary>A shot or swing seen on this client (not the host's): asks the host to clear the peels it reached.</summary>
+    public static void RequestClearInSphere(Vector3 center, float radius)
+    {
+        CollectDamaged(p => (p - center).sqrMagnitude <= (radius + DamageReach) * (radius + DamageReach));
+        SendDamaged();
+    }
+
+    public static void RequestClearAlongShot(Vector3 from, Vector3 to, float radius = 0.5f)
+    {
+        CollectDamaged(p => NearSegment(p, from, to, radius));
+        SendDamaged();
+    }
+
+    private static void SendDamaged()
+    {
+        foreach (int id in damaged)
+        {
+            BananaNet.RequestDamage(id);
+        }
+    }
+
+    private static bool NearSegment(Vector3 point, Vector3 a, Vector3 b, float radius)
+    {
+        Vector3 ab = b - a;
+        float t = Mathf.Clamp01(Vector3.Dot(point - a, ab) / Mathf.Max(ab.sqrMagnitude, 0.0001f));
+        float reach = radius + DamageReach;
+        return (a + ab * t - point).sqrMagnitude <= reach * reach;
+    }
+
+    // Collected first: clearing one makes the host (also a client) drop it from the list while we go through it.
+    private static void CollectDamaged(System.Func<Vector3, bool> reached)
+    {
+        damaged.Clear();
+        foreach (Banana banana in bananas.Values)
+        {
+            if (banana.state == State.Landed && banana.go != null && reached(banana.go.transform.position))
+            {
+                damaged.Add(banana.id);
+            }
+        }
     }
 
     public static void ClearAll()
@@ -143,7 +216,8 @@ internal static class BananaWorld
             return;
         }
         float frac = t / SimStep - index;
-        banana.go.transform.position = Vector3.Lerp(banana.path[index], banana.path[index + 1], frac);
+        // Through a portal it vanishes into one and appears out of the other (no streak across the map).
+        banana.go.transform.position = banana.jumps[index + 1] ? banana.path[index] : Vector3.Lerp(banana.path[index], banana.path[index + 1], frac);
         banana.go.transform.rotation = Quaternion.Euler(t * 540f, t * 220f, 0f); // tumble in the air
     }
 
@@ -286,10 +360,12 @@ internal static class BananaWorld
         BananaNet.RequestSlip(banana.id);
     }
 
-    /// <summary>Deterministic flight: fixed-step ballistic sim against static geometry.</summary>
-    private static List<Vector3> ComputePath(Vector3 start, Vector3 velocity, int id, out Quaternion landedRotation)
+    /// <summary>Deterministic flight: fixed-step ballistic sim against static geometry. Linked portals it flies into carry it out of the other one.</summary>
+    private static List<Vector3> ComputePath(Vector3 start, Vector3 velocity, int id, out Quaternion landedRotation, out List<bool> jumps)
     {
         var path = new List<Vector3> { start };
+        jumps = new List<bool> { false };
+        Portal skip = null;
         int mask = GetGroundMask();
         Vector3 position = start;
         Vector3 v = velocity;
@@ -299,6 +375,24 @@ internal static class BananaWorld
         {
             v += Physics.gravity * SimStep;
             Vector3 next = position + v * SimStep;
+            Vector3 stepVector = next - position;
+            float stepLength = stepVector.magnitude;
+            if (Portals.All.Count > 0 && stepLength > 1e-5f
+                && PortalShots.TryFindEntry(position, stepVector / stepLength, stepLength, skip, out Portal portal, out float toPortal))
+            {
+                // Into a portal, unless something solid is in the way first (the portal's own wall doesn't count).
+                Vector3 entry = position + stepVector / stepLength * toPortal;
+                if (!Physics.Linecast(position, entry - stepVector / stepLength * 0.05f, mask, QueryTriggerInteraction.Ignore))
+                {
+                    v = portal.TravelRotation * v;
+                    position = portal.MapPoint(entry) + v.normalized * 0.01f;
+                    skip = portal.Partner;
+                    path.Add(position);
+                    jumps.Add(true);
+                    continue;
+                }
+            }
+            skip = null;
             if (Physics.Linecast(position, next, out RaycastHit hit, mask, QueryTriggerInteraction.Ignore))
             {
                 if (hit.normal.y < 0.55f)
@@ -307,15 +401,18 @@ internal static class BananaWorld
                     v = Vector3.Reflect(v, hit.normal) * 0.3f;
                     position = hit.point + hit.normal * 0.02f;
                     path.Add(position);
+                    jumps.Add(false);
                     continue;
                 }
                 path.Add(hit.point);
+                jumps.Add(false);
                 Vector3 forward = Vector3.ProjectOnPlane(Quaternion.Euler(0f, yaw, 0f) * Vector3.forward, hit.normal).normalized;
                 landedRotation = Quaternion.LookRotation(forward, hit.normal);
                 return path;
             }
             position = next;
             path.Add(position);
+            jumps.Add(false);
         }
         // Fell off the world: land wherever the sim ended (it will be far below and harmless).
         landedRotation = Quaternion.Euler(0f, yaw, 0f);

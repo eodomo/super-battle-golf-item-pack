@@ -128,12 +128,24 @@ internal class KamehamehaItem : CustomItem
             KameEffects.SetCharging(inventory.PlayerInfo.netId, true);
             KameNet.SendCharging(true);
         }
-        else if (charging && (!Mouse.current.leftButton.isPressed || Time.time - chargeStart > MaxChargeSeconds.Value + 4f))
+        else if (charging && (!Mouse.current.leftButton.isPressed || Time.time - chargeStart > MaxChargeSeconds.Value + AutoFireSeconds))
         {
             charging = false;
             Fire(inventory, Mathf.Clamp01((Time.time - chargeStart) / MaxChargeSeconds.Value));
         }
+        else if (charging)
+        {
+            // Once at full power the beam fires by itself after a few more seconds: the wheel counts that down.
+            float heldFull = Time.time - chargeStart - MaxChargeSeconds.Value;
+            if (heldFull >= 0f)
+            {
+                TimerWheel.Show(1f - heldFull / AutoFireSeconds);
+            }
+        }
     }
+
+    /// <summary>Seconds a fully charged beam is held before it fires on its own.</summary>
+    private const float AutoFireSeconds = 4f;
 
     private static void CancelCharge(PlayerInventory inventory)
     {

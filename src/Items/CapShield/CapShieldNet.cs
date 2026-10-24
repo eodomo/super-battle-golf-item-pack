@@ -95,7 +95,7 @@ internal static class CapShieldNet
         {
             if (GameManager.LocalPlayerInfo != null)
             {
-                CapShieldItem.TryBlock(GameManager.LocalPlayerInfo, (KnockoutType)msg.reason);
+                CapShieldItem.TryBlock(GameManager.LocalPlayerInfo, (KnockoutType)msg.reason, Vector3.zero, forced: true);
             }
         });
     }

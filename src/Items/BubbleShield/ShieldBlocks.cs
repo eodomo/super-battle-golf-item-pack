@@ -29,7 +29,7 @@ internal static class ShieldKnockOutPatch
             : hasAttacker ? responsiblePlayer.transform.position + Vector3.up * 0.9f
             : Vector3.zero;
         bool inBubble = BubbleWorld.Blocks(victim, hasAttacker ? responsiblePlayer : null, source, hasOrigin);
-        bool blocked = inBubble || CapShieldItem.TryBlock(victim, knockoutType);
+        bool blocked = inBubble || CapShieldItem.TryBlock(victim, knockoutType, source);
         if (!blocked)
         {
             return true;
@@ -97,7 +97,7 @@ internal static class ShieldFreezePatch
             __result = false;
             return false;
         }
-        if (CapShieldItem.IsHoldingCharged(victim, out _, out _))
+        if (CapShieldItem.IsBlocking(victim, player.transform.position))
         {
             CapShieldNet.SendBlockOrder(victim, KnockoutType.FreezeBomb);
             __result = false;
@@ -115,11 +115,13 @@ internal static class ShieldFreezePatch
 [HarmonyPatch(typeof(PlayerGolfer), "OnServerWasHitByItem")]
 internal static class ShieldEliminationPatch
 {
-    private static bool Prefix(PlayerGolfer __instance, ItemType itemType, float distance, bool isReflected, ProtectiveState protectiveState)
+    private static bool Prefix(PlayerGolfer __instance, ItemType itemType, Vector3 direction, float distance, bool isReflected, ProtectiveState protectiveState)
     {
+        // The shot came from behind its direction; the laser and lightning come down from above (no sideways source: counts as in front).
+        Vector3 source = Vector3.ProjectOnPlane(direction, Vector3.up).sqrMagnitude > 0.1f ? __instance.transform.position - direction.normalized * 10f : Vector3.zero;
         if (!itemType.TryGetEliminationReason(distance, isReflected, protectiveState, out EliminationReason reason, out _)
             || (reason != EliminationReason.RailgunDirectHit && reason != EliminationReason.OrbitalLaserCenter && reason != EliminationReason.ThunderstormDirectHit)
-            || !CapShieldItem.IsHoldingCharged(__instance.PlayerInfo, out _, out _))
+            || !CapShieldItem.IsBlocking(__instance.PlayerInfo, source))
         {
             return true;
         }

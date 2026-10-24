@@ -230,7 +230,7 @@ internal static class PortalTravel
         PortalProjectiles.Live.RemoveWhere(body => body == null);
         foreach (Rigidbody body in PortalProjectiles.Live)
         {
-            if (body.isKinematic || !seen.Add(body) || !body.TryGetComponent(out Entity entity))
+            if (body.isKinematic || !body.gameObject.activeInHierarchy || !seen.Add(body) || !body.TryGetComponent(out Entity entity))
             {
                 continue;
             }
@@ -434,7 +434,8 @@ internal static class PortalTravel
             PlayerInfo player = entity.PlayerInfo;
             return player.isLocalPlayer && !player.ActiveGolfCartSeat.IsValid() && player.Movement.IsVisible;
         }
-        return NetworkServer.active || entity.IsSimulatingRigidbody();
+        // Thrown-away items exist only on each client, and each one moves its own copy.
+        return NetworkServer.active || entity.IsSimulatingRigidbody() || entity.TryGetComponent<ThrownUsedItem>(out _);
     }
 
     // ---- crossing over ----

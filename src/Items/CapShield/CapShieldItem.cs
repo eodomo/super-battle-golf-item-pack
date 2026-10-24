@@ -6,9 +6,9 @@ using UnityEngine;
 namespace ItemPack.Items;
 
 /// <summary>
-/// Captain America's shield, worn on the right hand facing out from the chest. It blocks any hit, from any direction
-/// (shots, swings, explosions, mines, rockets, beams, freezes, even a railgun's vaporizing). Use throws it (straight away,
-/// no wind-up) along your aim: it knocks out the first player it hits (or shoves a cart and knocks out whoever's in it) and comes back to your hand like a
+/// Captain America's shield, worn on the right hand facing out from the chest. While right click is held it blocks any hit
+/// from the front (shots, swings, explosions, mines, rockets, beams, freezes, even a railgun's vaporizing). Left click while
+/// aiming throws it along your aim: it knocks out the first player it hits (or shoves a cart and knocks out whoever's in it) and comes back to your hand like a
 /// boomerang off whatever it hits (a player, a cart, a wall or the ground). It has one charge: a block or a throw that hits
 /// someone or a cart uses it up; bouncing off the world is free, but a throw that hits nothing at all is gone for good.
 /// </summary>
@@ -46,7 +46,7 @@ internal class CapShieldItem : CustomItem
 
     public override void ConfigureItemData(ItemData data)
     {
-        data.NonAimUse = ItemNonAimingUse.Use;
+        data.NonAimUse = ItemNonAimingUse.None; // thrown only while aiming (right click held, then left click)
         data.IsExplosive = false;
         data.CanHitProjectiles = false;
         data.CanUsageAffectBalls = false;
@@ -77,14 +77,8 @@ internal class CapShieldItem : CustomItem
         Camera cam = GameManager.Camera;
         Vector3 origin = SlingerWebs.HandOf(player);
         Vector3 direction = cam != null ? cam.transform.forward : player.transform.forward;
-        if (!aiming)
-        {
-            // Not aiming: thrown level, straight ahead, like a frisbee (the camera usually looks down at the ground).
-            Vector3 level = Vector3.ProjectOnPlane(direction, Vector3.up);
-            direction = level.sqrMagnitude > 0.001f ? level.normalized : player.transform.forward;
-        }
-        // Aiming: head for what the crosshair is on, so it goes where you aim even though it leaves from the hand.
-        else if (cam != null && Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit aim, ThrowRange.Value + 10f, ~0, QueryTriggerInteraction.Ignore)
+        // Head for what the crosshair is on, so it goes where you aim even though it leaves from the hand.
+        if (cam != null && Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit aim, ThrowRange.Value + 10f, ~0, QueryTriggerInteraction.Ignore)
             && !aim.collider.transform.IsChildOf(player.transform) && (aim.point - origin).sqrMagnitude > 4f)
         {
             direction = (aim.point - origin).normalized;
@@ -117,14 +111,41 @@ internal class CapShieldItem : CustomItem
         return inventory.GetEffectiveSlot(slot).remainingUses > 0;
     }
 
+    /// <summary>Half-width (degrees) of the arc in front of the player that a raised shield covers.</summary>
+    public const float BlockAngle = 70f;
+
+    /// <summary>
+    /// Whether <paramref name="victim"/> has the shield raised (right click held) against an attack coming from
+    /// <paramref name="source"/>, a world point (zero when unknown, which counts as in front).
+    /// </summary>
+    public static bool IsBlocking(PlayerInfo victim, Vector3 source)
+    {
+        if (!IsHoldingCharged(victim, out PlayerInventory inventory, out _) || !inventory.IsAimingItemNetworked())
+        {
+            return false;
+        }
+        if (source == Vector3.zero)
+        {
+            return true;
+        }
+        Vector3 toSource = Vector3.ProjectOnPlane(source - victim.transform.position, Vector3.up);
+        if (toSource.sqrMagnitude < 0.04f)
+        {
+            return true; // straight above or on top of us
+        }
+        Vector3 forward = Vector3.ProjectOnPlane(victim.transform.forward, Vector3.up);
+        return Vector3.Angle(forward, toSource) <= BlockAngle;
+    }
+
     /// <summary>
     /// On the victim's client, from <see cref="ShieldKnockOutPatch"/> and friends: whether their held shield stops the
     /// hit, whichever way it comes from. Uses up a charge, with a clang everyone hears.
     /// </summary>
-    public static bool TryBlock(PlayerInfo victim, KnockoutType knockoutType)
+    public static bool TryBlock(PlayerInfo victim, KnockoutType knockoutType, Vector3 source, bool forced = false)
     {
         // A ball coming home onto your own head isn't an attack.
-        if (knockoutType == KnockoutType.ReturnedBall || !IsHoldingCharged(victim, out PlayerInventory inventory, out int slot))
+        if (knockoutType == KnockoutType.ReturnedBall || !IsHoldingCharged(victim, out PlayerInventory inventory, out int slot)
+            || (!forced && !IsBlocking(victim, source)))
         {
             return false;
         }

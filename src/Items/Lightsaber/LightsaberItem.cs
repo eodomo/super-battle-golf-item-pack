@@ -357,6 +357,7 @@ internal class LightsaberItem : CustomItem
 
         LayerSettings layers = GameManager.LayerSettings;
         int mask = layers.PlayersMask | (CutCarts.Value || !NetworkServer.active ? layers.GolfCartsMask : 0);
+        BananaWorld.RequestClearInSphere(contact, reach * 0.5f); // the blade cuts banana peels it sweeps over
         int count = Physics.OverlapSphereNonAlloc(chest + forward * (reach * 0.5f), reach * 0.65f, overlap, mask, QueryTriggerInteraction.Ignore);
         struck.Clear();
         targets.Clear();

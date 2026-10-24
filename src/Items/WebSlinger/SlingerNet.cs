@@ -8,6 +8,7 @@ public struct WebAttachRequest : NetworkMessage
 {
     public Vector3 anchor;
     public uint targetNetId; // 0 = stuck to the world; otherwise the player, cart or item being reeled in
+    public bool viaPortal; // the web went through a portal on its way
 }
 
 public struct WebAttach : NetworkMessage
@@ -15,6 +16,7 @@ public struct WebAttach : NetworkMessage
     public uint swingerNetId;
     public Vector3 anchor;
     public uint targetNetId;
+    public bool viaPortal;
 }
 
 public struct WebDetachRequest : NetworkMessage
@@ -38,15 +40,17 @@ internal static class SlingerNet
     // it pulls those (swinger -> target); a player moves themselves, so the pulled player's own client does it.
     private static readonly Dictionary<uint, uint> serverPulls = new();
     private static readonly List<uint> finished = new();
+    private static readonly HashSet<uint> serverViaPortal = new(); // swingers whose web went through a portal
     private static uint pulledBy;
+    private static bool pulledViaPortal;
     private static float pulledUntil;
 
     public static void InitSerializers()
     {
-        Writer<WebAttachRequest>.write = (w, m) => { w.WriteVector3(m.anchor); w.WriteUInt(m.targetNetId); };
-        Reader<WebAttachRequest>.read = r => new WebAttachRequest { anchor = r.ReadVector3(), targetNetId = r.ReadUInt() };
-        Writer<WebAttach>.write = (w, m) => { w.WriteUInt(m.swingerNetId); w.WriteVector3(m.anchor); w.WriteUInt(m.targetNetId); };
-        Reader<WebAttach>.read = r => new WebAttach { swingerNetId = r.ReadUInt(), anchor = r.ReadVector3(), targetNetId = r.ReadUInt() };
+        Writer<WebAttachRequest>.write = (w, m) => { w.WriteVector3(m.anchor); w.WriteUInt(m.targetNetId); w.WriteBool(m.viaPortal); };
+        Reader<WebAttachRequest>.read = r => new WebAttachRequest { anchor = r.ReadVector3(), targetNetId = r.ReadUInt(), viaPortal = r.ReadBool() };
+        Writer<WebAttach>.write = (w, m) => { w.WriteUInt(m.swingerNetId); w.WriteVector3(m.anchor); w.WriteUInt(m.targetNetId); w.WriteBool(m.viaPortal); };
+        Reader<WebAttach>.read = r => new WebAttach { swingerNetId = r.ReadUInt(), anchor = r.ReadVector3(), targetNetId = r.ReadUInt(), viaPortal = r.ReadBool() };
         Writer<WebDetachRequest>.write = (w, m) => { };
         Reader<WebDetachRequest>.read = r => new WebDetachRequest();
         Writer<WebDetach>.write = (w, m) => w.WriteUInt(m.swingerNetId);
@@ -65,10 +69,11 @@ internal static class SlingerNet
         {
             if (!IsLocal(msg.swingerNetId))
             {
-                SlingerWebs.Attach(msg.swingerNetId, msg.anchor, msg.targetNetId);
+                SlingerWebs.Attach(msg.swingerNetId, msg.anchor, msg.targetNetId, msg.viaPortal);
                 if (IsLocal(msg.targetNetId))
                 {
                     pulledBy = msg.swingerNetId;
+                    pulledViaPortal = msg.viaPortal;
                     pulledUntil = Time.time + WebSlingerItem.SlingSeconds.Value + 1f;
                 }
             }
@@ -86,11 +91,11 @@ internal static class SlingerNet
         });
     }
 
-    public static void SendAttach(Vector3 anchor, uint targetNetId = 0)
+    public static void SendAttach(Vector3 anchor, uint targetNetId = 0, bool viaPortal = false)
     {
         if (NetworkClient.active)
         {
-            NetworkClient.Send(new WebAttachRequest { anchor = anchor, targetNetId = targetNetId });
+            NetworkClient.Send(new WebAttachRequest { anchor = anchor, targetNetId = targetNetId, viaPortal = viaPortal });
         }
     }
 
@@ -104,15 +109,18 @@ internal static class SlingerNet
 
     private static void OnServerAttach(NetworkConnectionToClient conn, WebAttachRequest msg)
     {
-        if (conn.identity != null && (conn.identity.transform.position - msg.anchor).sqrMagnitude <= MaxAnchorDistance * MaxAnchorDistance)
+        // A web through a portal can stick far from the slinger (the portals can be anywhere).
+        float maxDistance = msg.viaPortal && Portals.All.Count > 0 ? MaxAnchorDistance * 10f : MaxAnchorDistance;
+        if (conn.identity != null && (conn.identity.transform.position - msg.anchor).sqrMagnitude <= maxDistance * maxDistance)
         {
             serverPulls.Remove(conn.identity.netId);
+            if (msg.viaPortal) { serverViaPortal.Add(conn.identity.netId); } else { serverViaPortal.Remove(conn.identity.netId); }
             if (msg.targetNetId != 0 && NetworkServer.spawned.TryGetValue(msg.targetNetId, out NetworkIdentity target) && target != null
-                && !target.TryGetComponent(out PlayerInfo _) && (target.transform.position - conn.identity.transform.position).sqrMagnitude <= MaxAnchorDistance * MaxAnchorDistance)
+                && !target.TryGetComponent(out PlayerInfo _) && (target.transform.position - conn.identity.transform.position).sqrMagnitude <= maxDistance * maxDistance)
             {
                 serverPulls[conn.identity.netId] = msg.targetNetId;
             }
-            NetworkServer.SendToAll(new WebAttach { swingerNetId = conn.identity.netId, anchor = msg.anchor, targetNetId = msg.targetNetId });
+            NetworkServer.SendToAll(new WebAttach { swingerNetId = conn.identity.netId, anchor = msg.anchor, targetNetId = msg.targetNetId, viaPortal = msg.viaPortal });
         }
     }
 
@@ -121,6 +129,7 @@ internal static class SlingerNet
         if (conn.identity != null)
         {
             serverPulls.Remove(conn.identity.netId);
+            serverViaPortal.Remove(conn.identity.netId);
             NetworkServer.SendToAll(new WebDetach { swingerNetId = conn.identity.netId });
         }
     }
@@ -142,7 +151,7 @@ internal static class SlingerNet
                 Rigidbody body = target.GetComponentInChildren<Rigidbody>();
                 if (body != null && !body.isKinematic && swinger.TryGetComponent(out PlayerInfo player))
                 {
-                    WebSlingerItem.Reel(body, SlingerWebs.HandOf(player), Time.fixedDeltaTime);
+                    WebSlingerItem.Reel(body, SlingerWebs.HandOf(player), Time.fixedDeltaTime, serverViaPortal.Contains(pull.Key));
                 }
             }
             foreach (uint netId in finished)
@@ -161,7 +170,7 @@ internal static class SlingerNet
                 pulledBy = 0;
                 return;
             }
-            WebSlingerItem.Reel(local.Rigidbody, SlingerWebs.HandOf(slinger), Time.fixedDeltaTime);
+            WebSlingerItem.Reel(local.Rigidbody, SlingerWebs.HandOf(slinger), Time.fixedDeltaTime, pulledViaPortal);
             if (local.Movement.IsGrounded)
             {
                 local.Movement.Unground();
@@ -172,6 +181,7 @@ internal static class SlingerNet
     public static void Reset()
     {
         serverPulls.Clear();
+        serverViaPortal.Clear();
         pulledBy = 0;
     }
 
@@ -190,10 +200,12 @@ internal static class SlingerWebs
         public PlayerInfo player;
         public bool attached;
         public Vector3 anchor;
+        public bool viaPortal;
         public Transform target;
         public float attachTime;
         public float detachTime;
         public LineRenderer line;
+        public LineRenderer farLine; // the piece after a portal, when the web went through one
         public GameObject splat;
     }
 
@@ -201,7 +213,7 @@ internal static class SlingerWebs
     private static readonly List<uint> gone = new();
     private static Material strandMaterial;
 
-    public static void Attach(uint netId, Vector3 anchor, uint targetNetId = 0)
+    public static void Attach(uint netId, Vector3 anchor, uint targetNetId = 0, bool viaPortal = false)
     {
         View view = GetOrCreate(netId);
         if (view == null)
@@ -210,6 +222,7 @@ internal static class SlingerWebs
         }
         view.attached = true;
         view.anchor = anchor;
+        view.viaPortal = viaPortal;
         view.target = targetNetId != 0 && NetworkClient.spawned.TryGetValue(targetNetId, out NetworkIdentity grabbed) && grabbed != null ? grabbed.transform : null;
         view.attachTime = Time.time;
         view.line.enabled = true;
@@ -228,6 +241,7 @@ internal static class SlingerWebs
             view.attached = false;
             view.detachTime = Time.time;
             view.line.enabled = false;
+            view.farLine.enabled = false;
             view.splat.SetActive(false);
         }
     }
@@ -258,9 +272,27 @@ internal static class SlingerWebs
                     view.splat.transform.position = view.anchor;
                 }
                 float shot = Mathf.Clamp01((Time.time - view.attachTime) / ShootSeconds);
-                view.line.SetPosition(0, hand);
-                view.line.SetPosition(1, Vector3.Lerp(hand, view.anchor, shot));
                 view.line.startWidth = view.line.endWidth = 0.035f;
+                if (view.viaPortal && Portals.All.Count > 0 && PortalShots.TryFindPathTo(hand, view.anchor, out Vector3 entry, out Vector3 exit)
+                    && (entry - hand).magnitude + (view.anchor - exit).magnitude < (view.anchor - hand).magnitude)
+                {
+                    // Through a portal: the strand goes into one and comes out of the other.
+                    float near = (entry - hand).magnitude;
+                    float far = (view.anchor - exit).magnitude;
+                    float reached = shot * (near + far);
+                    view.line.SetPosition(0, hand);
+                    view.line.SetPosition(1, Vector3.Lerp(hand, entry, near > 0.001f ? Mathf.Clamp01(reached / near) : 1f));
+                    view.farLine.enabled = reached > near;
+                    view.farLine.startWidth = view.farLine.endWidth = 0.035f;
+                    view.farLine.SetPosition(0, exit);
+                    view.farLine.SetPosition(1, Vector3.Lerp(exit, view.anchor, far > 0.001f ? Mathf.Clamp01((reached - near) / far) : 1f));
+                }
+                else
+                {
+                    view.farLine.enabled = false;
+                    view.line.SetPosition(0, hand);
+                    view.line.SetPosition(1, Vector3.Lerp(hand, view.anchor, shot));
+                }
             }
             else if (Time.time - view.detachTime > LingerSeconds)
             {
@@ -300,6 +332,10 @@ internal static class SlingerWebs
         {
             Object.Destroy(view.line.gameObject);
         }
+        if (view.farLine != null)
+        {
+            Object.Destroy(view.farLine.gameObject);
+        }
         if (view.splat != null)
         {
             Object.Destroy(view.splat);
@@ -330,6 +366,13 @@ internal static class SlingerWebs
         line.startColor = line.endColor = new Color(1f, 1f, 1f, 0.95f);
         line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         line.enabled = false;
+        var farStrand = new GameObject("WebStrandFar");
+        var farLine = farStrand.AddComponent<LineRenderer>();
+        farLine.sharedMaterial = strandMaterial;
+        farLine.positionCount = 2;
+        farLine.startColor = farLine.endColor = new Color(1f, 1f, 1f, 0.95f);
+        farLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        farLine.enabled = false;
 
         // A flat white blob where the web sticks.
         GameObject splat = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -339,7 +382,7 @@ internal static class SlingerWebs
         splat.GetComponent<MeshRenderer>().sharedMaterial = UnlitMaterials.Opaque(null, new Color(0.95f, 0.95f, 0.97f));
         splat.SetActive(false);
 
-        var view = new View { netId = netId, player = player, line = line, splat = splat };
+        var view = new View { netId = netId, player = player, line = line, farLine = farLine, splat = splat };
         views[netId] = view;
         return view;
     }

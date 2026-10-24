@@ -231,6 +231,7 @@ internal static class SaberThrows
         LayerSettings layers = GameManager.LayerSettings;
         int mask = layers.PlayersMask | (LightsaberItem.CutCarts.Value || !NetworkServer.active ? layers.GolfCartsMask : 0);
         float radius = LightsaberItem.BladeLength.Value * 0.6f;
+        BananaWorld.RequestClearInSphere(flight.position, radius * 0.5f); // the spinning blade cuts banana peels too
         int count = Physics.OverlapSphereNonAlloc(flight.position, radius, overlap, mask, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < count; i++)
         {

@@ -23,7 +23,7 @@ A player is ragdolled and recovers on their own. This is what most hits do.
 _Avoid_: Stun
 
 **Elimination**:
-A player is sent back to their spawn. The Lightsaber and the Kamehameha do this; the game calls it the same.
+A player is sent back to their spawn instantly. Only the game's railgun-type hits do this, which is what the Lightsaber and the Kamehameha use. Pistol, elephant gun and rocket hits only knock out.
 _Avoid_: Kill
 
 **Knockout immunity**:

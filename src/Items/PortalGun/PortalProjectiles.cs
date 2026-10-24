@@ -119,6 +119,13 @@ internal static class ProjectileTrackPatch
 
     [HarmonyPostfix, HarmonyPatch(typeof(FreezeBomb), "Awake")]
     private static void FreezeBombAwake(FreezeBomb __instance) => PortalProjectiles.Track(__instance);
+
+    // Tossed landmines and the used items players throw away (pooled, so tracked each time they come out).
+    [HarmonyPostfix, HarmonyPatch(typeof(Landmine), "Awake")]
+    private static void LandmineAwake(Landmine __instance) => PortalProjectiles.Track(__instance);
+
+    [HarmonyPostfix, HarmonyPatch(typeof(ThrownUsedItem), "OnEnable")]
+    private static void ThrownItemEnabled(ThrownUsedItem __instance) => PortalProjectiles.Track(__instance);
 }
 
 /// <summary>Swaps the collision queries in the rocket's and freeze bomb's CheckCollision for <see cref="PortalProjectiles"/>' versions.</summary>

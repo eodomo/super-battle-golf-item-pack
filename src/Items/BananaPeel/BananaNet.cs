@@ -25,6 +25,11 @@ public struct BananaSlipRequest : NetworkMessage
     public int id;
 }
 
+public struct BananaDamageRequest : NetworkMessage
+{
+    public int id;
+}
+
 public struct BananaRemoved : NetworkMessage
 {
     public int id;
@@ -54,6 +59,9 @@ internal static class BananaNet
         Writer<BananaSlipRequest>.write = (w, m) => w.WriteInt(m.id);
         Reader<BananaSlipRequest>.read = r => new BananaSlipRequest { id = r.ReadInt() };
 
+        Writer<BananaDamageRequest>.write = (w, m) => w.WriteInt(m.id);
+        Reader<BananaDamageRequest>.read = r => new BananaDamageRequest { id = r.ReadInt() };
+
         Writer<BananaRemoved>.write = (w, m) => { w.WriteInt(m.id); w.WriteUInt(m.slipperNetId); };
         Reader<BananaRemoved>.read = r => new BananaRemoved { id = r.ReadInt(), slipperNetId = r.ReadUInt() };
     }
@@ -63,6 +71,7 @@ internal static class BananaNet
         ResetServer();
         NetworkServer.RegisterHandler<BananaSpawnRequest>(OnServerSpawnRequest);
         NetworkServer.RegisterHandler<BananaSlipRequest>(OnServerSlipRequest);
+        NetworkServer.RegisterHandler<BananaDamageRequest>(OnServerDamageRequest);
         Plugin.Log.LogInfo("Banana server handlers registered.");
     }
 
@@ -97,6 +106,32 @@ internal static class BananaNet
             return;
         }
         NetworkClient.Send(new BananaSlipRequest { id = id });
+    }
+
+    /// <summary>A client saw damage reach a landed peel (shots, saber): the host clears it.</summary>
+    public static void RequestDamage(int id)
+    {
+        if (NetworkClient.active)
+        {
+            NetworkClient.Send(new BananaDamageRequest { id = id });
+        }
+    }
+
+    /// <summary>Host: damage cleared this peel. No slip, so it just disappears for everyone.</summary>
+    public static void ServerRemoveByDamage(int id)
+    {
+        if (serverLiveIds.Remove(id))
+        {
+            NetworkServer.SendToAll(new BananaRemoved { id = id, slipperNetId = 0 });
+        }
+    }
+
+    private static void OnServerDamageRequest(NetworkConnectionToClient conn, BananaDamageRequest msg)
+    {
+        if (conn.identity != null)
+        {
+            ServerRemoveByDamage(msg.id);
+        }
     }
 
     // ---- server ----

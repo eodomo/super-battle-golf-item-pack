@@ -1,11 +1,12 @@
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ItemPack.Items;
 
 /// <summary>
 /// While you channel a Kamehameha you float: the ground lets go, gravity stops, and walking moves you the way the camera
-/// looks (so looking up and walking forward climbs, looking down descends). It's slower than walking, and it's enough to
+/// looks (so looking up and walking forward climbs, looking down descends; space climbs and left control descends). It's slower than walking, and it's enough to
 /// cross a gap. Runs after the game's own movement step, so what it sets is what the physics step uses.
 /// </summary>
 [HarmonyPatch(typeof(PlayerMovement), "FixedUpdate")]
@@ -51,6 +52,13 @@ internal static class KameLevitate
         float sideInput = Vector3.Dot(move, right);
         Vector3 target = (look * forwardInput + right * sideInput) * KamehamehaItem.LevitateSpeed.Value;
 
+        // Space climbs and left control descends, whichever way you're looking.
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            target.y += ((keyboard.spaceKey.isPressed ? 1f : 0f) - (keyboard.leftCtrlKey.isPressed ? 1f : 0f)) * KamehamehaItem.LevitateSpeed.Value;
+        }
+
         // Never sink into the ground: below the hover height over solid ground, rise toward it.
         if (Physics.Raycast(body.position + Vector3.up * 0.5f, Vector3.down, out RaycastHit ground, 10f, WorldMask.Solid, QueryTriggerInteraction.Ignore))
         {
@@ -69,5 +77,20 @@ internal static class KameLevitate
         }
         velocity = Vector3.MoveTowards(velocity, target, Acceleration * Time.fixedDeltaTime);
         body.linearVelocity = velocity;
+    }
+}
+
+/// <summary>Left control lowers you while you channel, so it must not also start a dive (which would end the charge).</summary>
+[HarmonyPatch(typeof(PlayerMovement), nameof(PlayerMovement.TryDive))]
+internal static class KameNoDive
+{
+    private static bool Prefix(PlayerMovement __instance, ref bool __result)
+    {
+        if (!KamehamehaItem.Charging || !KamehamehaItem.Levitate.Value || !__instance.isLocalPlayer)
+        {
+            return true;
+        }
+        __result = false;
+        return false;
     }
 }

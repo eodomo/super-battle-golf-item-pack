@@ -54,6 +54,7 @@ internal class WebSlingerItem : CustomItem
     // The current web, if any (local player only).
     private static bool attached;
     private static Vector3 anchor;
+    private static bool anchorViaPortal; // the web crossed a portal, so the rope runs through it
     private static float ropeLength;
     // Set when the web stuck to a player, cart or item: that gets reeled in to us instead of us swinging.
     private static uint reelTarget;
@@ -177,15 +178,16 @@ internal class WebSlingerItem : CustomItem
         // Something that can be dragged (a player, cart or item) closer than the scenery is reeled in to us.
         if (FindMovable(player, cam, distance, out RaycastHit movable, out uint movableId)
             && (!hit || movable.distance <= target.distance)
-            && (movable.point - player.transform.position).sqrMagnitude <= MaxRange.Value * MaxRange.Value)
+            && InRange(player, movable, toPlayer))
         {
             reelTarget = movableId;
             attached = true;
-            SlingerWebs.Attach(player.netId, movable.point, movableId);
-            SlingerNet.SendAttach(movable.point, movableId);
+            bool crossed = CrossedPortal(cam, movable);
+            SlingerWebs.Attach(player.netId, movable.point, movableId, crossed);
+            SlingerNet.SendAttach(movable.point, movableId, crossed);
             return;
         }
-        if (!hit || (target.point - player.transform.position).sqrMagnitude > MaxRange.Value * MaxRange.Value)
+        if (!hit || !InRange(player, target, toPlayer))
         {
             // Missed: the web just flies off and fizzles.
             Vector3 end = origin + cam.transform.forward * Mathf.Min(MaxRange.Value, 30f);
@@ -195,7 +197,8 @@ internal class WebSlingerItem : CustomItem
         }
 
         anchor = target.point;
-        ropeLength = Mathf.Max(MinRope, Vector3.Distance(player.Rigidbody.worldCenterOfMass, anchor));
+        anchorViaPortal = CrossedPortal(cam, target);
+        ropeLength = Mathf.Max(MinRope, RopeTo(player.Rigidbody.worldCenterOfMass, anchor, anchorViaPortal, out _));
         attached = true;
         // A swing starts with a pull: get off the ground if the web is above us.
         if (player.Movement.IsGrounded && anchor.y > player.transform.position.y + 1f)
@@ -203,11 +206,42 @@ internal class WebSlingerItem : CustomItem
             player.Movement.Unground();
             player.Rigidbody.linearVelocity += Vector3.up * 3f;
         }
-        SlingerWebs.Attach(player.netId, anchor);
-        SlingerNet.SendAttach(anchor);
+        SlingerWebs.Attach(player.netId, anchor, 0, anchorViaPortal);
+        SlingerNet.SendAttach(anchor, 0, anchorViaPortal);
     }
 
     private static readonly RaycastHit[] hits = new RaycastHit[32];
+
+    /// <summary>Whether the web's path to a hit jumped through a portal: the distance it travelled exceeds the straight line from the camera.</summary>
+    private static bool CrossedPortal(Camera cam, RaycastHit hit) =>
+        Portals.All.Count > 0 && Mathf.Abs(hit.distance - (hit.point - cam.transform.position).magnitude) > 0.5f;
+
+    /// <summary>Whether a web hit is within reach: straight from the player, or along the web's path when it went through a portal.</summary>
+    private static bool InRange(PlayerInfo player, RaycastHit hit, float cameraDistance)
+    {
+        float straight = (hit.point - player.transform.position).magnitude;
+        return Mathf.Min(straight, hit.distance - cameraDistance) <= MaxRange.Value;
+    }
+
+    /// <summary>
+    /// How long the web is from <paramref name="from"/> to <paramref name="target"/>, and where it pulls toward: the
+    /// target itself, or the portal it runs into first when the web came through a portal (the far piece counts too).
+    /// </summary>
+    internal static float RopeTo(Vector3 from, Vector3 target, bool viaPortal, out Vector3 pullToward)
+    {
+        pullToward = target;
+        float direct = (target - from).magnitude;
+        if (viaPortal && Portals.All.Count > 0 && PortalShots.TryFindPathTo(from, target, out Vector3 entry, out Vector3 exit))
+        {
+            float around = (entry - from).magnitude + (target - exit).magnitude;
+            if (around < direct)
+            {
+                pullToward = entry;
+                return around;
+            }
+        }
+        return direct;
+    }
 
     /// <summary>The nearest other player (on foot), golf cart or loose item along the view, with its network id.</summary>
     private static bool FindMovable(PlayerInfo player, Camera cam, float distance, out RaycastHit best, out uint netId)
@@ -240,10 +274,12 @@ internal class WebSlingerItem : CustomItem
     }
 
     /// <summary>Accelerates a grabbed body toward the slinger's hand, stopping short so it arrives instead of overshooting.</summary>
-    internal static void Reel(Rigidbody body, Vector3 hand, float dt)
+    internal static void Reel(Rigidbody body, Vector3 hand, float dt, bool viaPortal)
     {
-        Vector3 toHand = hand - body.worldCenterOfMass;
-        float distance = toHand.magnitude;
+        // Through a portal (the web went through one), it's reeled toward the portal first.
+        float distance = RopeTo(body.worldCenterOfMass, hand, viaPortal, out Vector3 pullToward);
+        Vector3 toHand = pullToward - body.worldCenterOfMass;
+        toHand = toHand.sqrMagnitude > 1e-6f ? toHand.normalized * distance : Vector3.zero;
         Vector3 velocity = body.linearVelocity;
         if (distance < 3f)
         {
@@ -262,9 +298,11 @@ internal class WebSlingerItem : CustomItem
     /// <summary>The nearest thing along the camera's view that isn't the player's own body (a ray, or a fat one with a radius).</summary>
     private static bool NearestHit(PlayerInfo player, Camera cam, float radius, float distance, int mask, out RaycastHit best)
     {
+        // The web goes on through portals (distances count along the whole path, points are where it really lands).
+        var ray = new Ray(cam.transform.position, cam.transform.forward);
         int count = radius > 0f
-            ? Physics.SphereCastNonAlloc(cam.transform.position, radius, cam.transform.forward, hits, distance, mask, QueryTriggerInteraction.Ignore)
-            : Physics.RaycastNonAlloc(cam.transform.position, cam.transform.forward, hits, distance, mask, QueryTriggerInteraction.Ignore);
+            ? PortalShots.SphereCastNonAlloc(ray, radius, hits, distance, mask, QueryTriggerInteraction.Ignore)
+            : PortalShots.RaycastNonAlloc(ray, hits, distance, mask, QueryTriggerInteraction.Ignore);
         best = default;
         best.distance = float.MaxValue;
         for (int i = 0; i < count; i++)
@@ -326,8 +364,11 @@ internal class WebSlingerItem : CustomItem
         velocity.z /= Mathf.Lerp(1f, keep, 0.9f);
 
         // The rope: when it's taut, take away the speed that would stretch it and pull back to its length.
-        Vector3 toAnchor = anchor - center;
-        float distance = toAnchor.magnitude;
+        // (Through a portal the web pulls toward the portal first, then on to where it stuck.)
+        float distance = RopeTo(center, anchor, anchorViaPortal, out Vector3 pullToward);
+        Vector3 toAnchor = pullToward - center;
+        float toPull = toAnchor.magnitude;
+        toAnchor = toPull > 0.001f ? toAnchor / toPull * distance : toAnchor;
 
         // The web yanks you toward its anchor, with a bit of lift so a web stuck in the ground still launches you.
         if (distance > MinRope * 1.5f)

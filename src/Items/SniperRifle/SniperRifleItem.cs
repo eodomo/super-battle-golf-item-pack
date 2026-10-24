@@ -47,7 +47,6 @@ internal class SniperRifleItem : CustomItem
     internal static ConfigEntry<float> ReloadSeconds;
     internal static ConfigEntry<float> ShotCooldown;
     internal static ConfigEntry<float> MaxRange;
-    internal static ConfigEntry<int> MaxPenetration;
     internal static ConfigEntry<float> ZoomLow;
     internal static ConfigEntry<float> ZoomHigh;
     internal static ConfigEntry<float> ScopedSensitivity;
@@ -72,7 +71,6 @@ internal class SniperRifleItem : CustomItem
         ReloadSeconds = Bind("ReloadSeconds", 2f, "Reload time.");
         ShotCooldown = Bind("ShotCooldown", 0.5f, "Seconds between shots.");
         MaxRange = Bind("MaxRange", 400f, "How far a shot reaches (meters).");
-        MaxPenetration = Bind("MaxPenetration", 2, "How many players one shot can go through.");
         ZoomLow = Bind("ZoomLow", 2f, "First zoom level (magnification). Local setting.");
         ZoomHigh = Bind("ZoomHigh", 10f, "Second zoom level (scroll up or middle mouse). Local setting.");
         ScopedSensitivity = Bind("ScopedSensitivity", 1f, "Mouse sensitivity while scoped, relative to the zoom (1 = scales exactly with it). Local setting.");
@@ -178,12 +176,13 @@ internal class SniperRifleItem : CustomItem
             direction = direction.RandomlyRotatedDeg(HipFireSpread.Value);
         }
         var ray = new Ray(origin, direction);
-        int count = Physics.RaycastNonAlloc(ray, hits, MaxRange.Value, mask, QueryTriggerInteraction.Ignore);
+        // The round goes on through portals; hit distances are counted along the whole path.
+        int count = PortalShots.RaycastNonAlloc(ray, hits, MaxRange.Value, mask, QueryTriggerInteraction.Ignore);
         System.Array.Sort(hits, 0, count, Comparer<RaycastHit>.Create((a, b) => a.distance.CompareTo(b.distance)));
 
-        // Walk along the shot: go through players (up to MaxPenetration), stop at anything else.
-        Vector3 end = ray.origin + ray.direction * MaxRange.Value;
-        int playersHit = 0;
+        // Walk along the shot: go through every player, stop at anything else. The end is where the shot would stop
+        // if it went straight on (the trail folds it through any portals again).
+        float endDistance = MaxRange.Value;
         hitThisShot.Clear();
         for (int i = 0; i < count; i++)
         {
@@ -192,7 +191,7 @@ internal class SniperRifleItem : CustomItem
             if (hittable == null && DirtWorld.TryBreakHit(hit.collider))
             {
                 VfxManager.PlayElephantGunHitForAllClients(inventory, new VfxManager.GunShotHitVfxData(null, hitElectromagnetShield: false, default, hit.point));
-                end = hit.point;
+                endDistance = hit.distance;
                 break; // a dirt block stops the round (and breaks)
             }
             if (hittable != null && (!inventory.CanHitWithGunshot(hittable, null) || !hitThisShot.Add(hittable)))
@@ -204,7 +203,7 @@ internal class SniperRifleItem : CustomItem
             if (isPlayer && hittable.AsEntity.PlayerInfo.IsElectromagnetShieldActive)
             {
                 VfxManager.PlayElephantGunHitForAllClients(inventory, new VfxManager.GunShotHitVfxData(hittable, hitElectromagnetShield: true, hitLocal, hit.point));
-                end = hit.point;
+                endDistance = hit.distance;
                 break; // shields stop the round
             }
             if (hittable != null)
@@ -214,12 +213,17 @@ internal class SniperRifleItem : CustomItem
                     canHitWithNoUser: false, hitTimestamp: NetworkTime.time, itemUseHash: useHash);
             }
             VfxManager.PlayElephantGunHitForAllClients(inventory, new VfxManager.GunShotHitVfxData(hittable, hitElectromagnetShield: false, hitLocal, hit.point));
-            if (isPlayer && ++playersHit < Mathf.Max(1, MaxPenetration.Value))
+            if (isPlayer)
             {
                 continue;
             }
-            end = hit.point;
+            endDistance = hit.distance;
             break;
+        }
+        Vector3 end = ray.origin + ray.direction * endDistance;
+        foreach (PortalPaths.Segment segment in PortalPaths.Trace(ray.origin, ray.direction, endDistance, 0, out _))
+        {
+            BananaWorld.RequestClearAlongShot(segment.origin, segment.End); // the round clears banana peels it lands on
         }
 
         // Sound and vapor trail: here right away, everyone else through the host.

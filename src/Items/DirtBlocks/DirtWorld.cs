@@ -163,12 +163,14 @@ internal static class DirtWorld
     /// <summary>Host: breaks every block that overlaps a sphere (an explosion).</summary>
     public static void ServerBreakInSphere(Vector3 center, float radius)
     {
+        BananaWorld.ServerClearInSphere(center, radius); // every explosion also clears landed banana peels
         ServerBreakWhere(cellCenter => (cellCenter - center).sqrMagnitude <= Mathf.Pow(radius + Size * 0.5f, 2f));
     }
 
     /// <summary>Host: breaks every block that overlaps a capsule from <paramref name="a"/> to <paramref name="b"/> (a beam).</summary>
     public static void ServerBreakInCapsule(Vector3 a, Vector3 b, float radius)
     {
+        BananaWorld.ServerClearInCapsule(a, b, radius);
         Vector3 ab = b - a;
         float lengthSquared = Mathf.Max(ab.sqrMagnitude, 0.0001f);
         ServerBreakWhere(cellCenter =>

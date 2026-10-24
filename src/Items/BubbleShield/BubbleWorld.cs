@@ -134,14 +134,17 @@ internal static class BubbleWorld
         }
     }
 
-    // ---- golf balls can't pass through the dome's edge ----
+    // ---- golf balls and carts can't pass through the dome's edge ----
 
     private const float BallBounciness = 0.6f;
+    private const float CartBounciness = 0.3f;
+    private const float MaxCartReach = 4f;   // the longest a cart (the Megazord) is taken to reach from its middle
     private const float ShellReach = 4f;     // balls this far from the edge are tracked (more than a fast ball moves in a step)
     private const float ShellMargin = 0.04f; // how far off the edge a bounced ball is put
 
     private static readonly Collider[] nearBalls = new Collider[64];
     private static readonly Dictionary<Rigidbody, Vector3> lastBallPosition = new();
+    private static readonly Dictionary<Rigidbody, float> cartReach = new();
     private static readonly HashSet<Rigidbody> ballsSeen = new();
     private static readonly List<Rigidbody> ballsGone = new();
 
@@ -155,9 +158,10 @@ internal static class BubbleWorld
         if (bubbles.Count == 0 || layers == null)
         {
             lastBallPosition.Clear();
+            cartReach.Clear();
             return;
         }
-        int mask = layers.BallMask | layers.DynamicBallMask;
+        int mask = layers.BallMask | layers.DynamicBallMask | layers.GolfCartsMask;
         ballsSeen.Clear();
         foreach (Bubble bubble in bubbles)
         {
@@ -165,7 +169,7 @@ internal static class BubbleWorld
             {
                 continue;
             }
-            int count = Physics.OverlapSphereNonAlloc(bubble.center, bubble.radius + ShellReach, nearBalls, mask, QueryTriggerInteraction.Ignore);
+            int count = Physics.OverlapSphereNonAlloc(bubble.center, bubble.radius + ShellReach + MaxCartReach, nearBalls, mask, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < count; i++)
             {
                 Rigidbody body = nearBalls[i].attachedRigidbody;
@@ -177,7 +181,8 @@ internal static class BubbleWorld
                 ballsSeen.Add(body);
                 if (lastBallPosition.TryGetValue(body, out Vector3 before))
                 {
-                    BounceOffShell(bubble, body, before);
+                    bool cart = entity.IsGolfCart;
+                    BounceOffShell(bubble, body, before, cart ? ReachOf(body) : 0f, cart ? CartBounciness : BallBounciness);
                 }
                 lastBallPosition[body] = body.position;
             }
@@ -194,43 +199,74 @@ internal static class BubbleWorld
         foreach (Rigidbody body in ballsGone)
         {
             lastBallPosition.Remove(body);
+            cartReach.Remove(body);
         }
     }
 
-    private static void BounceOffShell(Bubble bubble, Rigidbody body, Vector3 before)
+    private static void BounceOffShell(Bubble bubble, Rigidbody body, Vector3 before, float reach, float bounciness)
     {
         Vector3 now = body.position;
-        float outsideBefore = (before - bubble.center).magnitude - bubble.radius;
-        float outsideNow = (now - bubble.center).magnitude - bubble.radius;
-        if (outsideBefore * outsideNow >= 0f)
+        float distanceBefore = (before - bubble.center).magnitude;
+        float distanceNow = (now - bubble.center).magnitude;
+        // A body is kept out of the dome by its own reach (half a cart's length), and kept in by the same.
+        bool wasOutside = distanceBefore >= bubble.radius;
+        float shell = wasOutside ? bubble.radius + reach : bubble.radius - reach;
+        if (shell <= 0.1f || (wasOutside ? !(distanceBefore >= shell && distanceNow < shell) : !(distanceBefore <= shell && distanceNow > shell)))
         {
-            return; // still on the same side
+            return; // didn't cross
         }
-        // Where the step's path met the dome's surface: |before + t * step - center| = radius.
+        // Where the step's path met the shell: |before + t * step - center| = shell.
         Vector3 step = now - before;
         Vector3 offset = before - bubble.center;
         float a = step.sqrMagnitude;
         float b = 2f * Vector3.Dot(offset, step);
-        float c = offset.sqrMagnitude - bubble.radius * bubble.radius;
+        float c = offset.sqrMagnitude - shell * shell;
         float discriminant = b * b - 4f * a * c;
         if (a < 1e-8f || discriminant < 0f)
         {
             return;
         }
         float root = Mathf.Sqrt(discriminant);
-        float t = outsideBefore < 0f ? (-b + root) / (2f * a) : (-b - root) / (2f * a); // leaving: the far crossing; entering: the near one
-        Vector3 hit = before + step * Mathf.Clamp01(t);
+        float t = wasOutside ? (-b - root) / (2f * a) : (-b + root) / (2f * a); // entering: the near crossing; leaving: the far one
+        Vector3 hit = bubble.center + (before + step * Mathf.Clamp01(t) - bubble.center).normalized * shell;
         Vector3 normal = (hit - bubble.center).normalized; // outward
         Vector3 velocity = body.linearVelocity;
         float into = Vector3.Dot(velocity, normal);
-        // Put the ball back on its own side, moving away from the edge.
-        body.position = hit + normal * (outsideBefore < 0f ? -ShellMargin : ShellMargin);
-        body.linearVelocity = velocity - (1f + BallBounciness) * into * normal;
+        // Put the body back on its own side, moving away from the edge.
+        body.position = hit + normal * (wasOutside ? ShellMargin : -ShellMargin);
+        body.linearVelocity = velocity - (1f + bounciness) * into * normal;
         bubble.flashUntil = Time.time + 0.3f;
         if (Mathf.Abs(into) > 2f)
         {
             BubbleSounds.PlayBlock(Volume(hit, 0.6f));
         }
+    }
+
+    /// <summary>How far a cart (or the Megazord) reaches from its middle, sideways: it stops that far from the dome.</summary>
+    private static float ReachOf(Rigidbody body)
+    {
+        if (!cartReach.TryGetValue(body, out float reach))
+        {
+            Bounds bounds = default;
+            bool any = false;
+            foreach (Collider collider in body.GetComponentsInChildren<Collider>())
+            {
+                if (collider.isTrigger || collider.attachedRigidbody != body)
+                {
+                    continue;
+                }
+                // Measured in the cart's own frame so a cart that is turned when first seen doesn't look wider than it is.
+                Bounds world = collider.bounds;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    Vector3 local = body.transform.InverseTransformPoint(world.center + Vector3.Scale(world.extents, new Vector3((corner & 1) == 0 ? -1f : 1f, (corner & 2) == 0 ? -1f : 1f, (corner & 4) == 0 ? -1f : 1f)));
+                    if (any) { bounds.Encapsulate(local); } else { bounds = new Bounds(local, Vector3.zero); any = true; }
+                }
+            }
+            reach = any ? Mathf.Clamp(Mathf.Max(bounds.extents.x, bounds.extents.z), 0.8f, MaxCartReach) : 1.5f;
+            cartReach[body] = reach;
+        }
+        return reach;
     }
 
     /// <summary>

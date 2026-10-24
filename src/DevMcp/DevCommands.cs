@@ -25,6 +25,8 @@ internal static class DevCommands
         switch (tool)
         {
             case "state": return State(r);
+            case "place_portal": return Once(() => PlacePortal(a, r));
+            case "damage_me": return Once(() => DamageMe(a, r));
             case "held_report": return Once(() => HeldReport(r));
             case "spawn_dummy": return Once(() => SpawnDummy(a, r));
             case "remove_dummies": return Once(() => r.Text($"Removed {DevDummies.RemoveAll()} dummies."));
@@ -100,6 +102,38 @@ internal static class DevCommands
             return;
         }
         r.Text($"Spawned a dummy player (net id {dummy.netId}) at {position}.");
+    }
+
+    /// <summary>Places the local player's portal of the given color (0 orange, 1 blue) on a surface at position facing normal.</summary>
+    private static void PlacePortal(JObject a, DevReply r)
+    {
+        PlayerMovement player = RequirePlayer(r);
+        if (player == null)
+        {
+            return;
+        }
+        if (!(DevJson.ReadVector(a["position"]) is Vector3 position) || !(DevJson.ReadVector(a["normal"]) is Vector3 normal) || normal == Vector3.zero)
+        {
+            r.Fail("position and normal ([x,y,z] arrays) are required.");
+            return;
+        }
+        Items.PortalNet.RequestPlace((byte)((int?)a["color"] ?? 0), position, Quaternion.LookRotation(normal));
+        r.Text($"Requested portal {(int?)a["color"] ?? 0} at {position} facing {normal}.");
+    }
+
+    /// <summary>Host only: a rocket-sized explosion at offset (world, from the local player) with no owner, so it hits you like an enemy's.</summary>
+    private static void DamageMe(JObject a, DevReply r)
+    {
+        PlayerMovement player = RequirePlayer(r);
+        if (player == null || !RequireHost(r))
+        {
+            return;
+        }
+        Vector3 offset = DevJson.ReadVector(a["offset"]) is Vector3 o ? o : player.transform.forward * 1.5f;
+        Vector3 position = player.transform.position + Vector3.up + offset;
+        Explosions.ServerExplode(position, (float?)a["scale"] ?? 0.5f, null);
+        Explosions.PlayEffects(position, 0.5f);
+        r.Text($"Exploded at {position}.");
     }
 
     // ---- state ----

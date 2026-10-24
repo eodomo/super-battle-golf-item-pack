@@ -85,6 +85,12 @@ internal static class GunshotBreaksDirt
         if (__instance.isLocalPlayer)
         {
             DirtWorld.TryBreakHit(raycastHit.collider);
+            if (raycastHit.collider != null)
+            {
+                // A peel the shot lands on or beside is shot away too (the host clears it for everyone).
+                Vector3 chest = __instance.PlayerInfo.transform.position + Vector3.up * 1.2f;
+                BananaWorld.RequestClearAlongShot(chest, raycastHit.point);
+            }
         }
     }
 }
